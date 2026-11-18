@@ -2,47 +2,57 @@
 
 **Practice. Progress. Master.**
 
-SYNAPTYL is a free question-practice and learning platform for school students (Classes 1–12) and competitive-exam aspirants.
+A free question-practice and learning platform for school students (Classes 1–12) and competitive-exam aspirants.
 
-## Launch principles
-
-- Free access for all students during the initial launch.
+## Product principles
+- Free access for every learner during the initial launch.
 - English-first experience.
-- Multiple question formats: MCQ, written-answer, and numerical.
-- Student progress, bookmarks, practice sessions, and mock tests.
-- Secure separation of student, administrator, and answer-key data.
+- School learning and competitive exam preparation.
+- MCQ, written-answer and numerical question formats.
+- Practice sessions, mock tests, explanations, bookmarks and progress tracking.
 
-## Planned technology
-
-- React + TypeScript + Vite
+## Technology
+- React 19 + TypeScript
+- Vite 8
+- Supabase (PostgreSQL, Auth, Storage and Edge Functions)
 - Cloudflare Pages
-- Supabase (Auth, PostgreSQL, Storage, and Edge Functions)
-- GitHub for version control
+- GitHub
 
-## Important security rules
-
-- Never put Supabase service-role or secret keys in frontend code.
-- Enable and test Row Level Security on every exposed table.
-- Keep correct answers and grading rules inaccessible to students until appropriate submission/marking flows.
-- Enforce administrator permissions server-side; never trust editable user metadata for authorization.
-- Students must only access their own private records.
-- Do not reuse MySMath's Supabase project or student data.
-
-## Development status
-
-This repository has been initialised. Application source code and database migrations are to be added after the existing implementation is reviewed and the dedicated SYNAPTYL Supabase project is confirmed.
-
-## Local development (once app scaffold is added)
+## Local development
+Requires Node.js 22.12 or newer.
 
 ```bash
 npm install
+cp .env.example .env.local
+# Add your Supabase publishable key to .env.local
 npm run dev
 ```
 
-## Deployment target
+Production build: `npm run build`.
 
-Cloudflare Pages, with build command `npm run build` and output directory `dist`.
+## Cloudflare Pages
+- Framework preset: Vite
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Root directory: `/`
+- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+## Supabase
+This frontend is configured for the dedicated SYNAPTYL Supabase project. Do not connect it to MySMath or reuse MySMath users or data.
+
+Only the project URL and publishable key belong in browser environment variables. Never expose a Supabase secret key or legacy `service_role` key in frontend code.
+
+**Important current Supabase behaviour:** new tables are not automatically exposed through the Data API by default. Future migrations must explicitly grant only the required API privileges, enable RLS, and create reviewed policies before client access is enabled.
+
+## Security baseline
+- Enable and test Row Level Security on every exposed table.
+- Keep answer keys and grading rules outside student-readable API access.
+- Enforce administrator permissions server-side; never use editable user metadata for authorization.
+- Students must only access their own private records.
+- Never let clients directly award or edit marks, answer correctness, payment status or role assignments.
+
+## Development status
+The repository contains the initial React frontend foundation and branded landing page. Authentication, protected dashboards, question workflows and database migrations are subsequent implementation steps; they are not yet claimed as complete.
 
 ## License
-
 Not yet specified. All rights reserved by the repository owner unless a license is added.
