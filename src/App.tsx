@@ -235,8 +235,6 @@ export default function App(){
     go('study')
     try{await loadTaxonomy()}catch(e){setStudyError(errText(e))}
   }
-  const studySubjects=useMemo(()=>subjects.filter(s=>s.track===studyTrack&&(studyTrack==='gk_gs'||s.school_class_id===studyClass)),[subjects,studyTrack,studyClass])
-  const studyTopics=useMemo(()=>topics.filter(t=>t.subject_id===studySubject),[topics,studySubject])
   const currentQuestion=questions[questionIndex]
 
   const loadTopic=async(topicId:string)=>{
@@ -268,7 +266,6 @@ export default function App(){
   const nextQuestion=()=>{
     setQuestionIndex(i=>Math.min(i+1,questions.length-1));setChosenOption('');setAnswerText('');setAnswerResult(null);setBookmarked(false)
   }
-  const [bookmarked,setBookmarked]=useState(false)
   const toggleBookmark=async()=>{
     if(!supabase||!currentQuestion)return
     if(!bookmarked){
@@ -280,25 +277,6 @@ export default function App(){
     }
   }
 
-  const editorSubjects=useMemo(()=>subjects.filter(s=>s.track===editor.track&&(editor.track==='gk_gs'||s.school_class_id===editor.class_id)),[subjects,editor.track,editor.class_id])
-  const editorTopics=useMemo(()=>topics.filter(t=>t.subject_id===editor.subject_id),[topics,editor.subject_id])
-  const newQuestion=async()=>{
-    if(!classes.length){try{await loadTaxonomy()}catch(e){setAdminError(errText(e));return}}
-    setEditor({...emptyEditor,class_id:classes[0]?.id||''});setEditorMessage('');setAdminTab('editor')
-  }
-  const editQuestion=(q:AdminQuestion)=>{
-    const opts=(q.options||[]).map(o=>o.text||o.option_text||'')
-    setEditor({
-      id:q.id,track:q.track,class_id:q.track==='k12'?(classes.find(c=>c.class_number===q.class_number)?.id||''):'',
-      subject_id:q.subject_id,topic_id:q.topic_id,question_type:q.question_type,prompt:q.prompt,
-      difficulty:q.difficulty,status:q.status==='published'?'published':'draft',
-      marks:String(q.marks??1),negative_marks:String(q.negative_marks??0),
-      options:opts.length?opts:['','','',''],
-      correct_option_index:Math.max(0,(q.options||[]).findIndex(o=>o.id===q.correct_option_id)),
-      accepted_answers:(q.accepted_answers||[]).join('\n'),explanation:q.explanation||'',exam_category_ids:q.exam_category_ids||[],
-    })
-    setEditorMessage('');setAdminTab('editor')
-  }
   const saveQuestion=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();if(!supabase)return
     setEditorBusy(true);setEditorMessage('')
