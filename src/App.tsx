@@ -1,3 +1,9 @@
+import { useEffect, useState, type FormEvent } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { isSupabaseConfigured, supabase } from './lib/supabase'
+
+type Screen = 'home' | 'login' | 'signup' | 'account'
+
 const schoolGroups = [
   { title: 'Primary', range: 'Classes 1–5', copy: 'Build strong foundations in core subjects.', icon: '✳' },
   { title: 'Middle school', range: 'Classes 6–8', copy: 'Strengthen concepts and problem-solving skills.', icon: '⌁' },
@@ -18,12 +24,167 @@ const gkgsAreas = [
 const examGroups = ['SSC', 'Railway', 'Teaching', 'Banking', 'Defence', 'Other competitive exams']
 
 export default function App() {
+  const [screen, setScreen] = useState<Screen>('home')
+  const [session, setSession] = useState<Session | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [authMessage, setAuthMessage] = useState('')
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true)
+      return
+    }
+
+    let mounted = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) {
+        setSession(data.session)
+        setAuthReady(true)
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const openAuth = (nextScreen: 'login' | 'signup') => {
+    setAuthError('')
+    setAuthMessage('')
+    setPassword('')
+    setScreen(nextScreen)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAuthError('')
+    setAuthMessage('')
+
+    if (!supabase || !isSupabaseConfigured) {
+      setAuthError('The Supabase connection is not configured yet. Please check the Cloudflare production variables.')
+      return
+    }
+
+    setAuthLoading(true)
+    try {
+      if (screen === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: { display_name: displayName.trim() },
+            emailRedirectTo: window.location.origin,
+          },
+        })
+        if (error) throw error
+        if (data.session) {
+          setSession(data.session)
+          setScreen('account')
+        } else {
+          setAuthMessage('Your account request was received. Check your email for the confirmation link, then sign in.')
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        })
+        if (error) throw error
+        setSession(data.session)
+        setScreen('account')
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Something went wrong. Please try again.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    if (!supabase) return
+    setAuthLoading(true)
+    const { error } = await supabase.auth.signOut()
+    setAuthLoading(false)
+    if (error) {
+      setAuthError(error.message)
+      return
+    }
+    setSession(null)
+    setScreen('home')
+    setAuthMessage('')
+    setAuthError('')
+  }
+
+  if (!authReady) {
+    return <main className="auth-page"><div className="auth-card"><span className="brand-mark">S</span><p>Loading your learning space…</p></div></main>
+  }
+
+  if (screen === 'login' || screen === 'signup') {
+    const isSignup = screen === 'signup'
+    return (
+      <main className="auth-page">
+        <a className="brand auth-brand" href="/" onClick={(event) => { event.preventDefault(); setScreen('home') }}><span className="brand-mark">S</span><span>SYNAPTYL</span></a>
+        <section className="auth-card">
+          <div className="eyebrow">{isSignup ? 'YOUR LEARNING JOURNEY STARTS HERE' : 'WELCOME BACK'}</div>
+          <h1>{isSignup ? 'Create your account.' : 'Good to see you.'}</h1>
+          <p className="auth-intro">{isSignup ? 'Join SYNAPTYL and access free K–12 and GK & GS practice.' : 'Sign in to continue your learning journey.'}</p>
+          {!isSupabaseConfigured && <div className="auth-alert">The Supabase environment variables have not been detected in this deployment.</div>}
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            {isSignup && <label>Full name<input autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" required maxLength={80} /></label>}
+            <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /></label>
+            <label>Password<input type="password" autoComplete={isSignup ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isSignup ? 'At least 8 characters' : 'Your password'} minLength={8} required /></label>
+            {authError && <div className="auth-alert error" role="alert">{authError}</div>}
+            {authMessage && <div className="auth-alert success" role="status">{authMessage}</div>}
+            <button className="button primary auth-submit" type="submit" disabled={authLoading || !isSupabaseConfigured}>{authLoading ? 'Please wait…' : isSignup ? 'Create free account' : 'Sign in'} <span>→</span></button>
+          </form>
+          <p className="auth-switch">{isSignup ? 'Already have an account?' : 'New to SYNAPTYL?'} <button type="button" onClick={() => openAuth(isSignup ? 'login' : 'signup')}>{isSignup ? 'Sign in' : 'Create an account'}</button></p>
+          <button className="back-home" type="button" onClick={() => setScreen('home')}>← Back to homepage</button>
+        </section>
+        <p className="auth-footnote">SYNAPTYL · Practice. Progress. Master.</p>
+      </main>
+    )
+  }
+
+  if (screen === 'account') {
+    const name = session?.user.user_metadata?.display_name || session?.user.user_metadata?.full_name || session?.user.email || 'Learner'
+    return (
+      <main className="account-page">
+        <header className="site-header account-header">
+          <a className="brand" href="/" onClick={(event) => { event.preventDefault(); setScreen('home') }}><span className="brand-mark">S</span><span>SYNAPTYL</span></a>
+          <button className="header-link" type="button" onClick={handleSignOut} disabled={authLoading}>Sign out</button>
+        </header>
+        <section className="account-content">
+          <div className="eyebrow">YOUR LEARNING SPACE</div>
+          <h1>Welcome, <em>{name}</em>.</h1>
+          <p className="hero-description">Your SYNAPTYL account is ready. Choose a learning area to explore.</p>
+          <div className="account-paths">
+            <a className="account-path-card" href="/#k12"><span className="path-icon">✳</span><small>SCHOOL LEARNING</small><h2>K–12</h2><p>Explore class-wise learning from Primary to Senior Secondary.</p><b>Explore K–12 →</b></a>
+            <a className="account-path-card" href="/#gk-gs"><span className="path-icon">⌁</span><small>COMPETITIVE EXAMS</small><h2>GK &amp; GS</h2><p>Practise General Knowledge and General Studies topic by topic.</p><b>Explore GK &amp; GS →</b></a>
+          </div>
+          <div className="account-note">Question practice, saved questions and progress tracking will appear here as those features are released.</div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main>
       <header className="site-header">
         <a className="brand" href="#home" aria-label="SYNAPTYL home"><span className="brand-mark">S</span><span>SYNAPTYL</span></a>
         <nav aria-label="Main navigation"><a href="#k12">K–12</a><a href="#gk-gs">GK &amp; GS</a><a href="#how-it-works">How it works</a><a href="#about">About</a></nav>
-        <a className="header-link" href="#learning-sections">Start learning <span>↗</span></a>
+        {session
+          ? <button className="header-link" type="button" onClick={() => setScreen('account')}>My account <span>↗</span></button>
+          : <div className="header-auth-actions"><button type="button" className="header-login" onClick={() => openAuth('login')}>Sign in</button><button type="button" className="header-signup" onClick={() => openAuth('signup')}>Join free <span>↗</span></button></div>}
       </header>
 
       <section className="hero" id="home">
