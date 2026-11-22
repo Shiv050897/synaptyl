@@ -10,20 +10,33 @@ const PRIVATE_PATHS = ['/k7m2q', '/chat', '/admin']
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const isPrivate = PRIVATE_PATHS.includes(path)
 
-// Five quick taps on any SYNAPTYL logo open the private sign-in page.
-// Nothing is shown to other visitors.
+// Hidden way into the private sign-in page: five quick taps on any SYNAPTYL
+// logo, or holding a finger on it for two seconds. Nothing is shown to others.
 if (!isPrivate) {
+  const onLogo = (e: Event) => e.target instanceof Element && e.target.closest('.brand') !== null
+  const open = () => window.location.assign(PRIVATE_PATHS[0])
   let taps: number[] = []
-  document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Element) || !e.target.closest('.brand')) return
+  let holdTimer: number | undefined
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!onLogo(e)) return
     const now = Date.now()
-    taps = [...taps.filter((t) => now - t < 3000), now]
+    taps = [...taps.filter((t) => now - t < 4000), now]
     if (taps.length >= 5) {
       taps = []
-      e.preventDefault()
-      window.location.assign(PRIVATE_PATHS[0])
+      open()
+      return
     }
+    window.clearTimeout(holdTimer)
+    holdTimer = window.setTimeout(open, 2000)
   }, true)
+
+  const cancelHold = () => window.clearTimeout(holdTimer)
+  document.addEventListener('pointerup', cancelHold, true)
+  document.addEventListener('pointercancel', cancelHold, true)
+  document.addEventListener('pointerleave', cancelHold, true)
+  // Stop the phone's link preview / context menu from hijacking a long press.
+  document.addEventListener('contextmenu', (e) => { if (onLogo(e)) e.preventDefault() }, true)
 }
 
 createRoot(document.getElementById('root')!).render(
