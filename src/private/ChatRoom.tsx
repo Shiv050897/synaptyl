@@ -8,6 +8,8 @@ import AudioBubble from './AudioBubble'
 import MediaBubble from './MediaBubble'
 import { ACCEPT, MAX_FILE, classify, preparePhoto } from './media'
 import Recorder, { type Recording } from './Recorder'
+import CallScreen from './CallScreen'
+import { useCall, type SignalEnvelope } from './useCall'
 
 export type LocalKeys = Awaited<ReturnType<typeof loadLocalKeys>>
 export type KeyDirectory = Map<string, Map<number, PublicJwk>>
@@ -91,6 +93,29 @@ export default function ChatRoom({
   const peerKeys = directory.get(peer.user_id)
   const peerLatest = peerKeys ? Math.max(...peerKeys.keys()) : 0
 
+  /** Shared AES key for my key version and the peer's key version (fetching new peer keys if needed). */
+  const sharedFor = useCallback(async (myVer: number, peerVer: number): Promise<CryptoKey | null> => {
+    const priv = localKeys.get(myVer)
+    if (!priv) return null
+    let peerJwk = dirRef.current.get(peer.user_id)?.get(peerVer)
+    if (!peerJwk) peerJwk = (await reloadDirectory()).get(peer.user_id)?.get(peerVer)
+    if (!peerJwk) return null
+    return sharedKey(
+      { userId: me.user_id, version: myVer, privateKey: priv.privateKey },
+      { userId: peer.user_id, version: peerVer, publicJwk: peerJwk },
+    )
+  }, [localKeys, me.user_id, peer.user_id, reloadDirectory])
+
+  // ---- calls ------------------------------------------------------------
+  const transmit = useCallback(async (env: SignalEnvelope) => {
+    await channelRef.current?.send({ type: 'broadcast', event: 'call', payload: env })
+  }, [])
+  const call = useCall({
+    meId: me.user_id, peerId: peer.user_id, sharedFor, myVersion: myLatest, peerVersion: peerLatest, transmit,
+  })
+  const onEnvelopeRef = useRef(call.onEnvelope)
+  onEnvelopeRef.current = call.onEnvelope
+
   // ---- decryption -------------------------------------------------------
   const decode = useCallback(async (row: Row): Promise<Msg> => {
     if (row.deleted_at || !row.ciphertext || !row.iv) return { row, payload: null, problem: 'deleted' }
@@ -167,6 +192,9 @@ export default function ChatRoom({
         setPeerTyping(true)
         window.clearTimeout(typingTimer.current)
         typingTimer.current = window.setTimeout(() => setPeerTyping(false), 4000)
+      })
+      .on('broadcast', { event: 'call' }, (msg) => {
+        void onEnvelopeRef.current(msg.payload as SignalEnvelope)
       })
       .on('presence', { event: 'sync' }, () => {
         setPeerOnline(Object.keys(channel.presenceState()).includes(peer.user_id))
@@ -331,6 +359,14 @@ export default function ChatRoom({
           <b>{peer.username}</b>
           <small>{peerTyping ? 'typing…' : peerOnline ? 'online' : ' '}</small>
         </div>
+        <button className="pc-icon-btn" type="button" aria-label="Video call" title="Video call"
+          disabled={!canSend || call.status !== 'idle'} onClick={() => void call.start('video')}>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" /></svg>
+        </button>
+        <button className="pc-icon-btn" type="button" aria-label="Voice call" title="Voice call"
+          disabled={!canSend || call.status !== 'idle'} onClick={() => void call.start('audio')}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
+        </button>
         <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Chat info">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         </button>
@@ -466,6 +502,8 @@ export default function ChatRoom({
           </form>
         )}
       </footer>
+
+      <CallScreen call={call} peerName={peer.username} />
 
       {showInfo && (
         <div className="pc-modal" role="dialog" aria-modal="true" onClick={() => setShowInfo(false)}>
