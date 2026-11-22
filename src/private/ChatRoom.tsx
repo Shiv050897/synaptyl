@@ -116,12 +116,11 @@ export default function ChatRoom({
   }, [decode])
 
   // ---- receipts ---------------------------------------------------------
-  const markRead = useCallback(() => {
-    if (document.visibilityState !== 'visible') {
-      void sb.rpc('chat_mark_messages', { p_status: 'delivered' })
-      return
-    }
-    void sb.rpc('chat_mark_messages', { p_status: 'read' })
+  // Supabase queries only run when awaited, so these must be awaited.
+  const markRead = useCallback(async () => {
+    const status = document.visibilityState === 'visible' ? 'read' : 'delivered'
+    const { error: markError } = await sb.rpc('chat_mark_messages', { p_status: status })
+    if (markError) console.warn('Could not update read receipts')
   }, [sb])
 
   // ---- initial load + realtime -----------------------------------------
@@ -136,7 +135,7 @@ export default function ChatRoom({
       await upsertRows(rows)
       setHasOlder(rows.length === PAGE)
       setLoading(false)
-      markRead()
+      void markRead()
     })()
 
     const channel = sb.channel('chat-room', { config: { private: true, broadcast: { self: false }, presence: { key: me.user_id } } })
@@ -146,7 +145,7 @@ export default function ChatRoom({
         void upsertRows([row])
         if (row.sender_id === peer.user_id) {
           setPeerTyping(false)
-          markRead()
+          void markRead()
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (p) => {
@@ -174,7 +173,7 @@ export default function ChatRoom({
     })()
     channelRef.current = channel
 
-    const onVisible = () => { if (document.visibilityState === 'visible') markRead() }
+    const onVisible = () => { if (document.visibilityState === 'visible') void markRead() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       cancelled = true
