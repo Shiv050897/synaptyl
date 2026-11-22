@@ -29,7 +29,7 @@ export type WhoAmI = {
 }
 
 /** Calls a chat Edge Function and returns its JSON body, throwing its error message. */
-export async function callFunction<T>(name: string, body: unknown): Promise<T> {
+export async function callFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
   if (!chatClient) throw new Error('The site is not configured.')
   const { data, error } = await chatClient.functions.invoke(name, { body })
   if (error) {
