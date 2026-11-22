@@ -309,6 +309,9 @@ export default function ChatRoom({
         <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Chat info">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         </button>
+        <button className="pc-icon-btn" type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" /></svg>
+        </button>
       </header>
 
       <div
