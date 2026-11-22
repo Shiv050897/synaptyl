@@ -1,6 +1,11 @@
 // Shared HTTP helpers for the private chat Edge Functions.
 
-const DEFAULT_ORIGINS = ['https://synaptyl.com', 'https://www.synaptyl.com', 'http://localhost:5173'];
+const DEFAULT_ORIGINS = [
+  'https://synaptyl.com',
+  'https://www.synaptyl.com',
+  'https://private-chat.synaptyl.pages.dev', // branch preview for testing
+  'http://localhost:5173',
+];
 
 function allowedOrigins(): string[] {
   const configured = Deno.env.get('CHAT_ALLOWED_ORIGINS');
