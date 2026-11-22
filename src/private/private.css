@@ -273,3 +273,66 @@
   position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 31; padding: 8px 14px; border-radius: 10px;
   font-size: 14px; background: var(--pc-ink); color: var(--pc-card);
 }
+
+/* Theme modes: an explicit choice overrides the phone's light/dark setting. */
+.pc.pc-theme-light {
+  --pc-bg: #f0f2f5; --pc-card: #ffffff; --pc-ink: #111b21; --pc-muted: #667781; --pc-line: #e2e6e9;
+  --pc-accent-ink: #ffffff; --pc-danger: #d93d3d; --pc-field: #f7f8fa; color-scheme: light;
+}
+.pc.pc-theme-dark {
+  --pc-bg: #0b141a; --pc-card: #111b21; --pc-ink: #e9edef; --pc-muted: #8696a0; --pc-line: #233138;
+  --pc-accent-ink: #0b141a; --pc-danger: #f15c6d; --pc-field: #202c33; color-scheme: dark;
+}
+.pc-chat { --pc-mine: color-mix(in srgb, var(--pc-accent) 22%, #ffffff); }
+.pc-chat.pc-theme-light { --pc-chat-bg: #efeae2; --pc-theirs: #ffffff; --pc-mine: color-mix(in srgb, var(--pc-accent) 22%, #ffffff); }
+.pc-chat.pc-theme-dark { --pc-chat-bg: #0b141a; --pc-theirs: #202c33; --pc-mine: color-mix(in srgb, var(--pc-accent) 42%, #0b141a); }
+@media (prefers-color-scheme: dark) {
+  .pc-chat:not(.pc-theme-light) { --pc-mine: color-mix(in srgb, var(--pc-accent) 42%, #0b141a); }
+}
+
+/* Wallpapers (used by the message list and the preview tiles) */
+.pc-chat [data-wallpaper='classic'] { background: var(--pc-chat-bg); }
+.pc-chat [data-wallpaper='plain'] { background: var(--pc-bg); }
+.pc-chat [data-wallpaper='dots'] {
+  background: radial-gradient(color-mix(in srgb, var(--pc-ink) 14%, transparent) 1.2px, transparent 1.4px) 0 0 / 18px 18px, var(--pc-chat-bg);
+}
+.pc-chat [data-wallpaper='sunset'] {
+  background: linear-gradient(160deg, color-mix(in srgb, #ff9a5a 35%, var(--pc-chat-bg)), color-mix(in srgb, #d16bfa 30%, var(--pc-chat-bg)));
+}
+.pc-chat [data-wallpaper='ocean'] {
+  background: linear-gradient(160deg, color-mix(in srgb, #3aa0ff 30%, var(--pc-chat-bg)), color-mix(in srgb, #00d4c8 30%, var(--pc-chat-bg)));
+}
+.pc-chat [data-wallpaper='forest'] {
+  background: linear-gradient(160deg, color-mix(in srgb, #4caf50 30%, var(--pc-chat-bg)), color-mix(in srgb, #c5e063 28%, var(--pc-chat-bg)));
+}
+.pc-messages { background-attachment: local; }
+
+/* Profile photos */
+.pc-avatar { overflow: hidden; }
+.pc-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-avatar-lg { width: 72px; height: 72px; font-size: 28px; }
+
+/* Settings panel */
+.pc-settings { width: 100%; max-width: 420px; max-height: 90dvh; overflow-y: auto; display: grid; gap: 18px; }
+.pc-settings-section { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--pc-line); }
+.pc-settings-label { font-size: 13px; font-weight: 600; margin: 4px 0 0 !important; }
+.pc-profile { display: flex; align-items: center; gap: 16px; }
+.pc-profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pc-profile-actions label { display: inline-flex; cursor: pointer; }
+.pc-disabled { opacity: .5; pointer-events: none; }
+.pc-segmented { display: flex; padding: 3px; border-radius: 10px; background: var(--pc-field); }
+.pc-segmented button {
+  flex: 1; padding: 8px; border: none; border-radius: 8px; cursor: pointer; background: transparent;
+  color: var(--pc-muted); font: 600 14px 'DM Sans', sans-serif;
+}
+.pc-segmented button.active { background: var(--pc-card); color: var(--pc-ink); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.pc-swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.pc-swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
+.pc-swatch.active { border-color: var(--pc-card); box-shadow: 0 0 0 2px var(--pc-ink); }
+.pc-wallpapers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pc-wallpaper-tile {
+  height: 64px; border-radius: 10px; border: 2px solid var(--pc-line); cursor: pointer;
+  display: flex; align-items: flex-end; padding: 6px; color: var(--pc-ink); font: 600 12px 'DM Sans', sans-serif;
+}
+.pc-wallpaper-tile.active { border-color: var(--pc-accent); }
+.pc-wallpaper-tile span { padding: 2px 6px; border-radius: 6px; background: var(--pc-card); }

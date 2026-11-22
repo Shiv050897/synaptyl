@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { chatClient, type WhoAmI } from './client'
 import {
   decryptPayload, encryptFile, encryptPayload, loadLocalKeys, safetyNumber, sharedKey,
@@ -9,6 +9,9 @@ import MediaBubble from './MediaBubble'
 import { ACCEPT, MAX_FILE, classify, preparePhoto } from './media'
 import Recorder, { type Recording } from './Recorder'
 import CallScreen from './CallScreen'
+import SettingsPanel from './SettingsPanel'
+import { avatarUrl, removeAvatar, setAvatar, type ProfileRow } from './avatars'
+import { loadTheme, saveTheme, type ChatTheme } from './theme'
 import { useCall, type SignalEnvelope } from './useCall'
 
 export type LocalKeys = Awaited<ReturnType<typeof loadLocalKeys>>
@@ -80,6 +83,10 @@ export default function ChatRoom({
   const [error, setError] = useState('')
   const [showInfo, setShowInfo] = useState(false)
   const [safety, setSafety] = useState('')
+  const [theme, setThemeState] = useState<ChatTheme>(() => loadTheme(me.user_id))
+  const [profiles, setProfiles] = useState<Map<string, ProfileRow>>(new Map())
+  const [photos, setPhotos] = useState<Map<string, string | null>>(new Map())
+  const [photoBusy, setPhotoBusy] = useState(false)
 
   const dirRef = useRef(directory)
   dirRef.current = directory
@@ -114,6 +121,7 @@ export default function ChatRoom({
     meId: me.user_id, peerId: peer.user_id, sharedFor, myVersion: myLatest, peerVersion: peerLatest, transmit,
   })
   const onEnvelopeRef = useRef(call.onEnvelope)
+  const applyProfilesRef = useRef<(rows: ProfileRow[]) => Promise<void>>(async () => {})
   onEnvelopeRef.current = call.onEnvelope
 
   // ---- decryption -------------------------------------------------------
@@ -146,6 +154,61 @@ export default function ChatRoom({
       return next
     })
   }, [decode])
+
+  // ---- profile photos ---------------------------------------------------
+  const applyProfiles = useCallback(async (rows: ProfileRow[]) => {
+    setProfiles((prev) => {
+      const next = new Map(prev)
+      for (const r of rows) next.set(r.user_id, r)
+      return next
+    })
+    for (const r of rows) {
+      const url = await avatarUrl(r, me.user_id, sharedFor).catch(() => null)
+      setPhotos((prev) => new Map(prev).set(r.user_id, url))
+    }
+  }, [me.user_id, sharedFor])
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await sb.from('chat_profiles').select('*')
+      await applyProfiles((data ?? []) as ProfileRow[])
+    })()
+  }, [sb, applyProfiles])
+
+  applyProfilesRef.current = applyProfiles
+
+  const changeTheme = (t: ChatTheme) => {
+    setThemeState(t)
+    saveTheme(me.user_id, t)
+  }
+
+  async function changePhoto(file: File) {
+    setPhotoBusy(true)
+    try {
+      await setAvatar({
+        meId: me.user_id, file, myVersion: myLatest, peerVersion: peerLatest, sharedFor,
+        oldPath: profiles.get(me.user_id)?.avatar_path ?? null,
+      })
+      const { data } = await sb.from('chat_profiles').select('*').eq('user_id', me.user_id)
+      await applyProfiles((data ?? []) as ProfileRow[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the photo.')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function deletePhoto() {
+    setPhotoBusy(true)
+    try {
+      await removeAvatar(me.user_id, profiles.get(me.user_id)?.avatar_path ?? null)
+      setPhotos((prev) => new Map(prev).set(me.user_id, null))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove the photo.')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
 
   // ---- receipts ---------------------------------------------------------
   // Supabase queries only run when awaited, so these must be awaited.
@@ -192,6 +255,9 @@ export default function ChatRoom({
         setPeerTyping(true)
         window.clearTimeout(typingTimer.current)
         typingTimer.current = window.setTimeout(() => setPeerTyping(false), 4000)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_profiles' }, (p) => {
+        if (p.new && (p.new as ProfileRow).user_id) void applyProfilesRef.current([p.new as ProfileRow])
       })
       .on('broadcast', { event: 'call' }, (msg) => {
         void onEnvelopeRef.current(msg.payload as SignalEnvelope)
@@ -352,9 +418,11 @@ export default function ChatRoom({
   // ---- render -----------------------------------------------------------
   let lastDay = ''
   return (
-    <div className="pc pc-chat">
+    <div className={`pc pc-chat pc-theme-${theme.mode}`} style={{ ['--pc-accent' as string]: theme.accent } as CSSProperties}>
       <header className="pc-chat-top">
-        <div className="pc-avatar" aria-hidden="true">{peer.username.slice(0, 1).toUpperCase()}</div>
+        <div className="pc-avatar" aria-hidden="true">
+          {photos.get(peer.user_id) ? <img src={photos.get(peer.user_id)!} alt="" /> : peer.username.slice(0, 1).toUpperCase()}
+        </div>
         <div className="pc-chat-title">
           <b>{peer.username}</b>
           <small>{peerTyping ? 'typing…' : peerOnline ? 'online' : ' '}</small>
@@ -367,7 +435,7 @@ export default function ChatRoom({
           disabled={!canSend || call.status !== 'idle'} onClick={() => void call.start('audio')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
         </button>
-        <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Chat info">
+        <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Settings" title="Settings">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         </button>
         <button className="pc-icon-btn" type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
@@ -377,6 +445,7 @@ export default function ChatRoom({
 
       <div
         className="pc-messages"
+        data-wallpaper={theme.wallpaper}
         ref={listRef}
         onScroll={(e) => {
           const el = e.currentTarget
@@ -506,18 +575,20 @@ export default function ChatRoom({
       <CallScreen call={call} peerName={peer.username} />
 
       {showInfo && (
-        <div className="pc-modal" role="dialog" aria-modal="true" onClick={() => setShowInfo(false)}>
-          <div className="pc-card pc-login" onClick={(e) => e.stopPropagation()}>
-            <h1>Encryption</h1>
-            <p className="pc-muted">
-              Compare this safety number with {peer.username}'s screen, in person or on a call. If both match,
-              nobody has swapped your encryption keys.
-            </p>
-            <p className="pc-safety">{safety || 'Available once both of you have opened the chat.'}</p>
-            <button className="pc-btn" type="button" onClick={() => setShowInfo(false)}>Close</button>
-            <button className="pc-btn pc-btn-danger" type="button" onClick={onSignOut}>Sign out</button>
-          </div>
-        </div>
+        <SettingsPanel
+          username={me.username}
+          peerName={peer.username}
+          myPhoto={photos.get(me.user_id) ?? null}
+          photoBusy={photoBusy}
+          canEditPhoto={canSend}
+          theme={theme}
+          safety={safety}
+          onTheme={changeTheme}
+          onPhoto={(f) => void changePhoto(f)}
+          onRemovePhoto={() => void deletePhoto()}
+          onClose={() => setShowInfo(false)}
+          onSignOut={onSignOut}
+        />
       )}
     </div>
   )
