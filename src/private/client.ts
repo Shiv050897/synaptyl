@@ -1,7 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+// Public values (safe in browser code). Build-time env vars take priority;
+// the fallbacks keep preview builds working without per-environment setup.
+const url = import.meta.env.VITE_SUPABASE_URL || 'https://fcufpkfxpiicaksyynhc.supabase.co'
+const publishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_kAiz1sGq4-hpAP2P8ITs6A_lL4FS5Zu'
 
 // A separate client with its own storage key, so a chat login never shares a
 // session with the learning site (and vice versa) in the same browser.
