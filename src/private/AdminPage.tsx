@@ -12,7 +12,7 @@ type Member = {
 type Overview = { locked: boolean; members: Member[]; message_count: number; media_count: number }
 type MessageRow = {
   id: string
-  kind: 'text' | 'voice' | 'audio'
+  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file'
   created_at: string
   read_at: string | null
   deleted_at: string | null
@@ -22,6 +22,9 @@ type MessageRow = {
 }
 
 const PAGE = 50
+const KIND_LABEL: Record<MessageRow['kind'], string> = {
+  text: 'Text', voice: 'Voice note', audio: 'Audio file', image: 'Photo', video: 'Video', file: 'Document',
+}
 
 function when(value: string | null) {
   return value ? new Date(value).toLocaleString() : '—'
@@ -130,7 +133,7 @@ export default function AdminPage({ me, onSignOut }: { me: WhoAmI; onSignOut: ()
           </button>
         </div>
         <p className="pc-stats">
-          {overview ? `${overview.message_count} messages · ${overview.media_count} audio files` : 'Loading…'}
+          {overview ? `${overview.message_count} messages · ${overview.media_count} files` : 'Loading…'}
         </p>
       </section>
 
@@ -195,7 +198,7 @@ export default function AdminPage({ me, onSignOut }: { me: WhoAmI; onSignOut: ()
                   <td>{when(m.created_at)}</td>
                   <td>{m.sender ?? '—'}</td>
                   <td>{m.recipient ?? '—'}</td>
-                  <td>{m.kind === 'text' ? 'Text' : m.kind === 'voice' ? 'Voice note' : 'Audio file'}</td>
+                  <td>{KIND_LABEL[m.kind]}</td>
                   <td>{m.deleted_at ? 'Deleted by sender' : m.read_at ? 'Read' : 'Sent'}</td>
                 </tr>
               ))}

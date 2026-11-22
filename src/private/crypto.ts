@@ -18,6 +18,8 @@ export type MediaInfo = {
   name?: string
   duration?: number
   wave?: number[]
+  width?: number
+  height?: number
 }
 
 export type Payload = { v: 1; text?: string; media?: MediaInfo }

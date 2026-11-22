@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { chatClient } from './client'
-import { decryptFile, type MediaInfo } from './crypto'
+import type { MediaInfo } from './crypto'
+import { loadDecrypted } from './media'
 
-// Decrypted audio is kept in memory only for this browser tab.
-const decrypted = new Map<string, string>()
+const loaded = new Set<string>()
 
 function fmt(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) return '0:00'
@@ -12,7 +11,7 @@ function fmt(sec: number) {
 }
 
 export default function AudioBubble({ path, media, voice }: { path: string; media: MediaInfo; voice: boolean }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>(decrypted.has(path) ? 'ready' : 'idle')
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>(loaded.has(path) ? 'ready' : 'idle')
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(media.duration ?? 0)
@@ -21,18 +20,10 @@ export default function AudioBubble({ path, media, voice }: { path: string; medi
   useEffect(() => () => audioRef.current?.pause(), [])
 
   async function ensureLoaded(): Promise<string | null> {
-    const cached = decrypted.get(path)
-    if (cached) return cached
-    setState('loading')
+    setState((s) => (s === 'ready' ? s : 'loading'))
     try {
-      // Short-lived signed URL; the file itself is ciphertext.
-      const { data, error } = await chatClient!.storage.from('chat-media').createSignedUrl(path, 60)
-      if (error || !data) throw new Error('no url')
-      const res = await fetch(data.signedUrl, { cache: 'no-store', referrerPolicy: 'no-referrer' })
-      if (!res.ok) throw new Error('download failed')
-      const blob = await decryptFile(await res.arrayBuffer(), media)
-      const url = URL.createObjectURL(blob)
-      decrypted.set(path, url)
+      const url = await loadDecrypted(path, media, voice ? 'voice' : 'audio')
+      loaded.add(path)
       setState('ready')
       return url
     } catch {

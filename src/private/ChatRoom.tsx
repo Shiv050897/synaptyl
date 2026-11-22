@@ -5,6 +5,8 @@ import {
   type MediaInfo, type Payload, type PublicJwk,
 } from './crypto'
 import AudioBubble from './AudioBubble'
+import MediaBubble from './MediaBubble'
+import { ACCEPT, MAX_FILE, classify, preparePhoto } from './media'
 import Recorder, { type Recording } from './Recorder'
 
 export type LocalKeys = Awaited<ReturnType<typeof loadLocalKeys>>
@@ -14,7 +16,7 @@ type Row = {
   id: string
   sender_id: string
   recipient_id: string
-  kind: 'text' | 'voice' | 'audio'
+  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file'
   ciphertext: string | null
   iv: string | null
   sender_key_version: number | null
@@ -35,7 +37,6 @@ type Msg = {
 
 const PAGE = 50
 const MAX_TEXT = 20_000
-const MAX_FILE = 24 * 1024 * 1024
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const day = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -45,7 +46,13 @@ function preview(m: Msg | undefined) {
   if (m.problem === 'deleted') return 'Deleted message'
   if (!m.payload) return 'Encrypted message'
   if (m.payload.text) return m.payload.text.slice(0, 120)
-  return m.row.kind === 'voice' ? '🎤 Voice note' : `🎵 ${m.payload.media?.name ?? 'Audio'}`
+  switch (m.row.kind) {
+    case 'voice': return '🎤 Voice note'
+    case 'image': return '📷 Photo'
+    case 'video': return '🎬 Video'
+    case 'file': return `📄 ${m.payload.media?.name ?? 'Document'}`
+    default: return `🎵 ${m.payload.media?.name ?? 'Audio'}`
+  }
 }
 
 export default function ChatRoom({
@@ -251,9 +258,9 @@ export default function ChatRoom({
     await sendPayload('text', { v: 1, text: body }, null, crypto.randomUUID())
   }
 
-  async function sendMedia(kind: 'voice' | 'audio', blob: Blob, extra: Partial<MediaInfo>) {
+  async function sendMedia(kind: Exclude<Row['kind'], 'text'>, blob: Blob, extra: Partial<MediaInfo>) {
     if (!canSend) return
-    if (blob.size > MAX_FILE) return setError('Audio files must be under 24 MB.')
+    if (blob.size > MAX_FILE) return setError('Files must be under 24 MB.')
     const id = crypto.randomUUID()
     try {
       const encrypted = await encryptFile(await blob.arrayBuffer())
@@ -262,12 +269,30 @@ export default function ChatRoom({
         .upload(path, encrypted.blob, { contentType: 'application/octet-stream', upsert: false })
       if (upError) throw new Error('Upload failed.')
       const media: MediaInfo = {
-        key: encrypted.key, iv: encrypted.iv, mime: blob.type || 'audio/webm', size: blob.size, ...extra,
+        key: encrypted.key, iv: encrypted.iv,
+        mime: blob.type || (kind === 'voice' ? 'audio/webm' : 'application/octet-stream'),
+        size: blob.size, ...extra,
       }
       await sendPayload(kind, { v: 1, media }, path, id)
     } catch {
-      setError('The audio could not be sent.')
+      setError('The file could not be sent.')
     }
+  }
+
+  async function sendPickedFile(file: File) {
+    const kind = classify(file)
+    if (!kind) return setError('That file type is not supported.')
+    const name = file.name.slice(0, 120)
+    if (kind === 'image') {
+      try {
+        const photo = await preparePhoto(file)
+        await sendMedia('image', photo.blob, { width: photo.width, height: photo.height })
+      } catch {
+        setError('The photo could not be processed.')
+      }
+      return
+    }
+    await sendMedia(kind, file, { name })
   }
 
   function onType(value: string) {
@@ -350,7 +375,9 @@ export default function ChatRoom({
                   {m.problem === 'failed' && <i className="pc-faint">⚠️ Couldn't decrypt this message</i>}
                   {m.payload?.text && <p className="pc-text">{m.payload.text}</p>}
                   {m.payload?.media && m.row.media_path && (
-                    <AudioBubble path={m.row.media_path} media={m.payload.media} voice={m.row.kind === 'voice'} />
+                    m.row.kind === 'voice' || m.row.kind === 'audio'
+                      ? <AudioBubble path={m.row.media_path} media={m.payload.media} voice={m.row.kind === 'voice'} />
+                      : <MediaBubble path={m.row.media_path} media={m.payload.media} kind={m.row.kind === 'image' ? 'image' : m.row.kind === 'video' ? 'video' : 'file'} />
                   )}
                   <span className="pc-meta">
                     {time(m.row.created_at)}
@@ -398,17 +425,17 @@ export default function ChatRoom({
           />
         ) : (
           <form className="pc-composer-form" onSubmit={sendText}>
-            <label className="pc-icon-btn" aria-label="Send an audio file">
+            <label className="pc-icon-btn" aria-label="Send a photo, video, audio or document">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.5 12.5 21a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" /></svg>
               <input
                 type="file"
-                accept="audio/*"
+                accept={ACCEPT}
                 hidden
                 disabled={!canSend}
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   e.target.value = ''
-                  if (file) void sendMedia('audio', file, { name: file.name.slice(0, 120) })
+                  if (file) void sendPickedFile(file)
                 }}
               />
             </label>

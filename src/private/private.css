@@ -218,3 +218,22 @@
 .pc-modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .45); }
 .pc-safety { font: 600 18px/1.6 ui-monospace, monospace; text-align: center; letter-spacing: .05em; word-spacing: .4em; }
 .pc textarea { font-family: inherit; }
+
+/* Photos, videos, documents */
+.pc-photo {
+  width: min(280px, 62vw); max-height: 360px; border-radius: 8px; overflow: hidden;
+  display: grid; place-items: center; background: color-mix(in srgb, var(--pc-ink) 8%, transparent);
+}
+.pc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pc-video { width: min(300px, 64vw); max-height: 400px; border-radius: 8px; display: block; background: #000; }
+.pc-file {
+  display: flex; align-items: center; gap: 10px; min-width: 210px; max-width: 280px; padding: 8px; cursor: pointer;
+  text-align: left; border: none; border-radius: 8px; color: var(--pc-ink); font: inherit;
+  background: color-mix(in srgb, var(--pc-ink) 7%, transparent);
+}
+.pc-file-icon { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--pc-card); font-size: 18px; }
+.pc-file-body { display: grid; min-width: 0; }
+.pc-file-body b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-file-body small { font-size: 12px; color: var(--pc-muted); }
+.pc-viewer { background: rgb(0 0 0 / .9); cursor: zoom-out; }
+.pc-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
