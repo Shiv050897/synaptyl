@@ -15,6 +15,7 @@ type Props = {
   onClose: () => void
   onSignOut: () => void
   backup: ReactNode
+  notifications: ReactNode
 }
 
 const MODES: { id: ThemeMode; name: string }[] = [
@@ -63,6 +64,11 @@ export default function SettingsPanel(p: Props) {
               ? `Encrypted: only you and ${p.peerName} can see it.`
               : `Available once ${p.peerName} has opened the chat.`}
           </p>
+        </section>
+
+        <section className="pc-settings-section">
+          <h2>Notifications</h2>
+          {p.notifications}
         </section>
 
         <section className="pc-settings-section">

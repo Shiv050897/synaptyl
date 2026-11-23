@@ -29,6 +29,8 @@ type Options = {
   peerVersion: number
   /** Sends an envelope to the peer over the realtime channel. */
   transmit: (env: SignalEnvelope) => Promise<void>
+  /** Called when an outgoing call starts ringing (used to send a push notification). */
+  onRing?: (media: CallMedia) => void
   /** Called once per outgoing call with its result, to record call history. */
   onLog?: (entry: { media: CallMedia; outcome: CallOutcome; duration?: number }) => void
 }
@@ -67,7 +69,7 @@ function createRinger() {
   }
 }
 
-export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, transmit, onLog }: Options) {
+export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, transmit, onLog, onRing }: Options) {
   const [status, setStatus] = useState<CallStatus>('idle')
   const [media, setMedia] = useState<CallMedia>('audio')
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
@@ -91,6 +93,9 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
   const startedRef = useRef<number | null>(null)
   const onLogRef = useRef(onLog)
   onLogRef.current = onLog
+  const onRingRef = useRef(onRing)
+  onRingRef.current = onRing
+  const lastOffer = useRef<{ callId: string; media: CallMedia; sdp: string } | null>(null)
 
   /** Records the result of an outgoing call once (the caller keeps the history). */
   const log = (outcome: CallOutcome) => {
@@ -127,6 +132,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
     streamRef.current = null
     callId.current = null
     pendingOffer.current = null
+    lastOffer.current = null
     queuedIce.current = []
     setLocalStream(null)
     setRemoteStream(null)
@@ -191,7 +197,9 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
       const peer = createPeer(stream)
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
+      lastOffer.current = { callId: callId.current, media: kind, sdp: offer.sdp ?? '' }
       await send({ t: 'offer', callId: callId.current, media: kind, sdp: offer.sdp ?? '' })
+      onRingRef.current?.(kind)
       ringTimer.current = window.setTimeout(() => {
         if (statusRef.current === 'outgoing' && callId.current) {
           log('no-answer')
@@ -250,6 +258,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
     }
 
     if (signal.t === 'offer') {
+      if (signal.callId === callId.current) return // repeat of a call we already know about
       if (statusRef.current !== 'idle') {
         await send({ t: 'busy', callId: signal.callId })
         return
@@ -293,6 +302,12 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
     }
   }, [peerId, sharedFor, send, cleanup])
 
+  /** Sends the ringing call again, e.g. when the other person opens the app from a notification. */
+  const resendOffer = useCallback(() => {
+    const o = lastOffer.current
+    if (statusRef.current === 'outgoing' && o) void send({ t: 'offer', callId: o.callId, media: o.media, sdp: o.sdp })
+  }, [send])
+
   const toggleMute = () => {
     const next = !muted
     streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = !next })
@@ -313,6 +328,6 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
 
   return {
     status, media, localStream, remoteStream, muted, cameraOff, startedAt, notice,
-    start, accept, decline, hangUp, toggleMute, toggleCamera, onEnvelope,
+    start, accept, decline, hangUp, toggleMute, toggleCamera, onEnvelope, resendOffer,
   }
 }

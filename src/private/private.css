@@ -476,3 +476,9 @@
 html.pc-fit .pc { zoom: var(--pc-zoom, 1); }
 html.pc-fit .pc { min-height: calc(100dvh / var(--pc-zoom, 1)); }
 html.pc-fit .pc-chat { height: calc(100dvh / var(--pc-zoom, 1)); max-width: none; }
+
+/* Notification prompt */
+.pc-banner-push { display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, var(--pc-accent) 14%, var(--pc-card)); color: var(--pc-ink); cursor: default; }
+.pc-banner-push span { flex: 1; font-size: calc(14px * var(--pc-fs)); }
+.pc-banner-push .pc-btn { padding: 6px 12px; }
+.pc-banner-push .pc-icon-btn { width: 32px; height: 32px; }
