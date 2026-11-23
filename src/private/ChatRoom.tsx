@@ -460,7 +460,7 @@ export default function ChatRoom({
   // ---- render -----------------------------------------------------------
   let lastDay = ''
   return (
-    <div className={`pc pc-chat pc-theme-${theme.mode}`} style={{ ['--pc-accent' as string]: theme.accent } as CSSProperties}>
+    <div className={`pc pc-chat pc-theme-${theme.mode}`} style={{ ['--pc-accent' as string]: theme.accent, ['--pc-fs' as string]: String(theme.textScale) } as CSSProperties}>
       <div className="pc-chat-top">
         <div className="pc-avatar" aria-hidden="true">
           {photos.get(peer.user_id) ? <img src={photos.get(peer.user_id)!} alt="" /> : peer.username.slice(0, 1).toUpperCase()}

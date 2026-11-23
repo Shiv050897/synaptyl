@@ -408,3 +408,29 @@
 .pc-sticker .pc-sticker-caption { font-size: 15px; margin-top: -6px; }
 .pc-text.pc-text-jumbo { font-size: 46px; line-height: 1.15; }
 @keyframes pc-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Adjustable text size (Settings → Theme → Text size) */
+.pc-chat { --pc-fs: 1; }
+.pc-text { font-size: calc(17px * var(--pc-fs)); }
+.pc-text.pc-text-jumbo { font-size: calc(46px * var(--pc-fs)); }
+.pc-meta, .pc-tick { font-size: calc(12.5px * var(--pc-fs)); }
+.pc-faint { font-size: calc(15.5px * var(--pc-fs)); }
+.pc-quote { font-size: calc(14.5px * var(--pc-fs)); }
+.pc-quote b { font-size: calc(13.5px * var(--pc-fs)); }
+.pc-day, .pc-e2ee-note { font-size: calc(13.5px * var(--pc-fs)); }
+.pc-input { font-size: calc(17px * var(--pc-fs)); }
+.pc-chat-title b { font-size: calc(18px * var(--pc-fs)); }
+.pc-chat-title small { font-size: calc(13.5px * var(--pc-fs)); }
+.pc-audio-time, .pc-audio-name { font-size: calc(13.5px * var(--pc-fs)); }
+.pc-file-body b { font-size: calc(15.5px * var(--pc-fs)); }
+.pc-file-body small { font-size: calc(13px * var(--pc-fs)); }
+.pc-sticker .pc-sticker-caption { font-size: calc(15px * var(--pc-fs)); }
+.pc-actions button { font-size: calc(15px * var(--pc-fs)); }
+.pc-bubble { min-width: calc(96px * var(--pc-fs)); }
+.pc-textsize { display: flex; align-items: center; gap: 10px; }
+.pc-textsize .pc-btn { min-width: 58px; font-weight: 700; }
+.pc-textsize-preview {
+  flex: 1; display: grid; justify-items: center; gap: 2px; padding: 8px; border-radius: 10px;
+  background: var(--pc-mine); line-height: 1.3; overflow: hidden;
+}
+.pc-textsize-preview small { font-size: 12px; color: var(--pc-muted); }

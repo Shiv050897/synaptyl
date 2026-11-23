@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ACCENTS, WALLPAPERS, type ChatTheme, type ThemeMode } from './theme'
+import { ACCENTS, TEXT_SCALES, WALLPAPERS, textSizeLabel, type ChatTheme, type ThemeMode } from './theme'
 
 type Props = {
   username: string
@@ -79,6 +79,23 @@ export default function SettingsPanel(p: Props) {
                 {m.name}
               </button>
             ))}
+          </div>
+          <p className="pc-settings-label">Text size</p>
+          <div className="pc-textsize">
+            <button type="button" className="pc-btn" aria-label="Smaller text"
+              disabled={p.theme.textScale <= TEXT_SCALES[0]}
+              onClick={() => p.onTheme({ ...p.theme, textScale: TEXT_SCALES[Math.max(0, TEXT_SCALES.indexOf(p.theme.textScale) - 1)] })}>
+              <span style={{ fontSize: 14 }}>A</span>−
+            </button>
+            <div className="pc-textsize-preview" style={{ fontSize: `${17 * p.theme.textScale}px` }}>
+              Hello! 👋
+              <small>{textSizeLabel(p.theme.textScale)}</small>
+            </div>
+            <button type="button" className="pc-btn" aria-label="Larger text"
+              disabled={p.theme.textScale >= TEXT_SCALES[TEXT_SCALES.length - 1]}
+              onClick={() => p.onTheme({ ...p.theme, textScale: TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, TEXT_SCALES.indexOf(p.theme.textScale) + 1)] })}>
+              <span style={{ fontSize: 20 }}>A</span>+
+            </button>
           </div>
           <p className="pc-settings-label">Colour</p>
           <div className="pc-swatches" role="radiogroup" aria-label="Accent colour">
