@@ -30,7 +30,27 @@ export default function PrivateRoot() {
     meta.name = 'robots'
     meta.content = 'noindex, nofollow'
     document.head.appendChild(meta)
-    return () => meta.remove()
+
+    // Make the private area installable as its own full-screen app.
+    const added: HTMLElement[] = [meta]
+    const add = (tag: 'link' | 'meta', attrs: Record<string, string>) => {
+      const el = document.createElement(tag)
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+      document.head.appendChild(el)
+      added.push(el)
+    }
+    add('link', { rel: 'manifest', href: '/pc/manifest.webmanifest' })
+    add('link', { rel: 'apple-touch-icon', href: '/pc/apple-touch-icon.png' })
+    add('meta', { name: 'mobile-web-app-capable', content: 'yes' })
+    add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' })
+    add('meta', { name: 'apple-mobile-web-app-title', content: 'Chat' })
+    const theme = document.querySelector('meta[name="theme-color"]')
+    const oldTheme = theme?.getAttribute('content') ?? null
+    theme?.setAttribute('content', '#00a884')
+    return () => {
+      added.forEach((el) => el.remove())
+      if (theme && oldTheme) theme.setAttribute('content', oldTheme)
+    }
   }, [])
 
   const signOut = useCallback(async (message = '') => {
