@@ -20,7 +20,7 @@ export const chatClient: SupabaseClient | null =
       })
     : null
 
-export const LOGIN_PATH = '/k7m2q'
+export const LOGIN_PATH = '/s'
 
 export type ChatRole = 'x1' | 'x2' | 'admin'
 
