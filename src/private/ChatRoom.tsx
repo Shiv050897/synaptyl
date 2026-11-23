@@ -10,6 +10,7 @@ import { ACCEPT, MAX_FILE, classify, preparePhoto } from './media'
 import Recorder, { type Recording } from './Recorder'
 import CallScreen from './CallScreen'
 import SettingsPanel from './SettingsPanel'
+import BackupSection from './BackupSection'
 import { avatarUrl, removeAvatar, setAvatar, type ProfileRow } from './avatars'
 import { loadTheme, saveTheme, type ChatTheme } from './theme'
 import { useCall, type SignalEnvelope } from './useCall'
@@ -61,13 +62,14 @@ function preview(m: Msg | undefined) {
 }
 
 export default function ChatRoom({
-  me, localKeys, directory, reloadDirectory, onSignOut,
+  me, localKeys, directory, reloadDirectory, onSignOut, onKeysChanged,
 }: {
   me: WhoAmI
   localKeys: LocalKeys
   directory: KeyDirectory
   reloadDirectory: () => Promise<KeyDirectory>
   onSignOut: () => void
+  onKeysChanged: () => Promise<void>
 }) {
   const sb = chatClient!
   const peer = me.peer!
@@ -210,6 +212,14 @@ export default function ChatRoom({
       setPhotoBusy(false)
     }
   }
+
+  // When keys are restored, decrypt the messages already on screen again.
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  useEffect(() => {
+    const rows = [...messagesRef.current.values()].filter((m) => !m.local).map((m) => m.row)
+    if (rows.length) void upsertRows(rows)
+  }, [upsertRows])
 
   // ---- receipts ---------------------------------------------------------
   // Supabase queries only run when awaited, so these must be awaited.
@@ -598,6 +608,14 @@ export default function ChatRoom({
           onRemovePhoto={() => void deletePhoto()}
           onClose={() => setShowInfo(false)}
           onSignOut={onSignOut}
+          backup={
+            <BackupSection
+              meId={me.user_id}
+              myKeys={directory.get(me.user_id)}
+              localVersions={[...localKeys.keys()]}
+              onKeysChanged={onKeysChanged}
+            />
+          }
         />
       )}
     </div>

@@ -144,6 +144,7 @@ export default function ChatHome({ me, onSignOut }: { me: WhoAmI; onSignOut: () 
       directory={directory}
       reloadDirectory={loadDirectory}
       onSignOut={onSignOut}
+      onKeysChanged={async () => setLocalKeys(await loadLocalKeys(me.user_id))}
     />
   )
 }

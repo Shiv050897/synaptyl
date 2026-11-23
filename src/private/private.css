@@ -347,3 +347,6 @@
 .pc-call-self.peer { transform: none; }
 .pc-call-remote { transform-origin: center; will-change: transform; }
 .pc-call { touch-action: none; }
+
+/* Message backup (settings) */
+.pc-backup, .pc-backup-form { display: grid; gap: 10px; }

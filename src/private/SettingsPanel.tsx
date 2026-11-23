@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ACCENTS, WALLPAPERS, type ChatTheme, type ThemeMode } from './theme'
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
   onRemovePhoto: () => void
   onClose: () => void
   onSignOut: () => void
+  backup: ReactNode
 }
 
 const MODES: { id: ThemeMode; name: string }[] = [
@@ -61,6 +63,11 @@ export default function SettingsPanel(p: Props) {
               ? `Encrypted: only you and ${p.peerName} can see it.`
               : `Available once ${p.peerName} has opened the chat.`}
           </p>
+        </section>
+
+        <section className="pc-settings-section">
+          <h2>Message backup</h2>
+          {p.backup}
         </section>
 
         <section className="pc-settings-section">
