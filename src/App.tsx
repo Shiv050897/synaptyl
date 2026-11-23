@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import Home from './Home'
+import AdminTopics from './AdminTopics'
+import ProgressPanel from './ProgressPanel'
 
 type Screen = 'home' | 'login' | 'signup' | 'account' | 'admin' | 'study'
 type Track = 'k12' | 'gk_gs'
-type AdminTab = 'overview' | 'questions' | 'editor' | 'contacts' | 'guardians'
+type AdminTab = 'overview' | 'questions' | 'editor' | 'topics' | 'contacts' | 'guardians'
 type Profile = { id:string; username:string; display_name:string|null; contact_phone:string|null; age_group:'under_18'|'18_plus'|null; guardian_consent_status:string; marketing_opt_in:boolean; marketing_channels:string[] }
 type SchoolClass = { id:string; class_number:number; stage:string; display_name:string }
 type Subject = { id:string; name:string; track:Track; school_class_id:string|null; display_order:number }
@@ -17,22 +20,6 @@ type ContactRow = { user_id:string; username:string; display_name:string; email:
 type GuardianRow = { user_id:string; username:string; display_name:string; guardian_name:string; guardian_email:string; guardian_phone:string; guardian_consent_status:string; created_at:string }
 type EditorState = { id:string|null; track:Track; class_id:string; subject_id:string; topic_id:string; question_type:'mcq'|'written'|'numerical'; prompt:string; difficulty:string; status:'draft'|'published'; marks:string; negative_marks:string; options:string[]; correct_option_index:number; accepted_answers:string; explanation:string; exam_category_ids:string[] }
 type PracticeResult = { attempt_id:string; status:string; is_correct:boolean|null; marks_awarded:number|null; correct_option_id:string|null; explanation:string|null }
-const groups = [
-  { title:'Primary', range:'Classes 1–5', copy:'Build strong foundations in core subjects.', icon:'✳' },
-  { title:'Middle school', range:'Classes 6–8', copy:'Strengthen concepts and problem-solving skills.', icon:'⌁' },
-  { title:'Secondary', range:'Classes 9–10', copy:'Practise concepts and prepare with confidence.', icon:'◇' },
-  { title:'Senior secondary', range:'Classes 11–12', copy:'Go deeper with focused subject practice.', icon:'↗' },
-]
-const gkgs = [
-  { title:'Static GK', copy:'Facts, places, awards, books, important days and more.' },
-  { title:'General Science', copy:'Physics, Chemistry and Biology for exam practice.' },
-  { title:'Indian History', copy:'Ancient, Medieval and Modern Indian History.' },
-  { title:'Geography', copy:'Indian and World Geography, maps and environment.' },
-  { title:'Indian Polity', copy:'Constitution, governance, rights and institutions.' },
-  { title:'Indian Economy', copy:'Economic concepts, policies and key indicators.' },
-  { title:'Current Affairs', copy:'Important national and international developments.' },
-  { title:'Environment', copy:'Ecology, biodiversity and environmental awareness.' },
-]
 const emptyEditor:EditorState = { id:null,track:'k12',class_id:'',subject_id:'',topic_id:'',question_type:'mcq',prompt:'',difficulty:'medium',status:'draft',marks:'1',negative_marks:'0',options:['','','',''],correct_option_index:0,accepted_answers:'',explanation:'',exam_category_ids:[] }
 function arr<T>(v:unknown):T[]{ return Array.isArray(v) ? v as T[] : [] }
 function errText(e:unknown){ return e instanceof Error ? e.message : 'Something went wrong. Please try again.' }
@@ -96,6 +83,8 @@ export default function App(){
   const [answerResult,setAnswerResult]=useState<PracticeResult|null>(null)
   const [answerBusy,setAnswerBusy]=useState(false)
   const [bookmarked,setBookmarked]=useState(false)
+  const [stats,setStats]=useState({answered:0,correct:0,incorrect:0,review:0,marks:0})
+  const [finished,setFinished]=useState(false)
 
   useEffect(()=>{
     if(!supabase){setAuthReady(true);return}
@@ -175,7 +164,7 @@ export default function App(){
     if(adminTab==='overview'||adminTab==='questions')void loadAdmin()
     if(adminTab==='contacts')void loadContacts()
     if(adminTab==='guardians')void loadGuardians()
-    if(adminTab==='editor'&&classes.length===0)void loadTaxonomy().catch(e=>setAdminError(errText(e)))
+    if((adminTab==='editor'||adminTab==='topics')&&classes.length===0)void loadTaxonomy().catch(e=>setAdminError(errText(e)))
   },[screen,isAdmin,adminTab,loadAdmin,loadContacts,loadGuardians,loadTaxonomy,classes.length])
 
   const submitAuth=async(event:FormEvent<HTMLFormElement>)=>{
@@ -191,7 +180,7 @@ export default function App(){
         const {data,error}=await supabase.auth.signUp({email:accountEmail.trim(),password,options:{data:metadata,emailRedirectTo:window.location.origin}})
         if(error)throw error
         if(data.session){setSession(data.session);go('account')}
-        else{setAuthMessage('Your registration has been received. Email confirmation is currently enabled in Supabase. Turn off Confirm email in Authentication settings for immediate account access. Your assigned username will appear after first sign-in.');setAuthMode('login');setScreen('login')}
+        else{setAuthMessage('Almost done! We have sent a confirmation link to '+accountEmail.trim()+'. Open it, then sign in here. Check your spam folder if you cannot find it.');setAuthMode('login');setScreen('login')}
       }else{
         const {data,error}=await supabase.auth.signInWithPassword({email:accountEmail.trim(),password})
         if(error)throw error
@@ -239,7 +228,7 @@ export default function App(){
 
   const loadTopic=async(topicId:string)=>{
     if(!supabase||!session)return
-    setStudyTopic(topicId);setStudyBusy(true);setStudyError('');setQuestions([]);setPracticeSession(null);setQuestionIndex(0);setAnswerResult(null)
+    setStudyTopic(topicId);setStudyBusy(true);setStudyError('');setQuestions([]);setPracticeSession(null);setQuestionIndex(0);setAnswerResult(null);setChosenOption('');setAnswerText('');setStats({answered:0,correct:0,incorrect:0,review:0,marks:0});setFinished(false)
     try{
       const [sessionRes,qRes]=await Promise.all([
         supabase.from('practice_sessions').insert({track:studyTrack,session_type:'practice'}).select('id').single(),
@@ -260,7 +249,9 @@ export default function App(){
     try{
       const {data,error}=await supabase.rpc('submit_question_answer',{p_session_id:practiceSession,p_question_id:currentQuestion.id,p_answer:answer})
       if(error)throw error
-      setAnswerResult(data as PracticeResult)
+      const r=data as PracticeResult
+      setAnswerResult(r)
+      setStats(st=>({answered:st.answered+1,correct:st.correct+(r.status==='correct'?1:0),incorrect:st.incorrect+(r.status==='incorrect'?1:0),review:st.review+(r.status==='submitted_for_review'?1:0),marks:st.marks+Number(r.marks_awarded||0)}))
     }catch(e){setStudyError(errText(e))}finally{setAnswerBusy(false)}
   }
   const nextQuestion=()=>{
@@ -364,14 +355,14 @@ export default function App(){
 
   if(screen==='admin'){
     if(!isAdmin)return <main className="auth-page"><section className="auth-card"><div className="eyebrow">RESTRICTED AREA</div><h1>Admin access only.</h1><p className="auth-intro">This account does not have the SYNAPTYL super-admin role.</p><button className="button primary" onClick={()=>go('account')}>Return to account</button></section></main>
-    const tabs:[AdminTab,string,string][]=[['overview','▦','Overview'],['questions','▤','Question bank'],['editor','＋','Add question'],['contacts','◎','Adult opt-ins'],['guardians','⌁','Guardian review']]
+    const tabs:[AdminTab,string,string][]=[['overview','▦','Overview'],['questions','▤','Question bank'],['editor','＋','Add question'],['topics','≡','Topics'],['contacts','◎','Adult opt-ins'],['guardians','⌁','Guardian review']]
     return <main className="admin-shell">
       <aside className="admin-sidebar"><a className="brand" href="/" onClick={e=>{e.preventDefault();go('home')}}><span className="brand-mark">S</span><span>SYNAPTYL</span></a><div className="admin-label">SUPER ADMIN</div>
         <nav className="admin-nav">{tabs.map(([tab,icon,label])=><button key={tab} type="button" className={adminTab===tab?'active':''} onClick={()=>setAdminTab(tab)}><span>{icon}</span>{label}</button>)}</nav>
         <div className="admin-sidebar-bottom"><button type="button" onClick={()=>go('account')}>← Student view</button><button type="button" onClick={signOut}>Sign out</button></div>
       </aside>
       <section className="admin-main">
-        <header className="admin-topbar"><div><div className="eyebrow">SYNAPTYL CONTROL CENTRE</div><h1>{adminTab==='overview'?'Overview':adminTab==='questions'?'Question bank':adminTab==='editor'?(editor.id?'Edit question':'Create question'):adminTab==='contacts'?'Adult marketing opt-ins':'Guardian verification'}</h1></div><div className="admin-user"><span className="admin-avatar">A</span><div><b>Super Admin</b><small>{profile?.username||session?.user.email}</small></div></div></header>
+        <header className="admin-topbar"><div><div className="eyebrow">SYNAPTYL CONTROL CENTRE</div><h1>{adminTab==='overview'?'Overview':adminTab==='questions'?'Question bank':adminTab==='editor'?(editor.id?'Edit question':'Create question'):adminTab==='topics'?'Topics and chapters':adminTab==='contacts'?'Adult marketing opt-ins':'Guardian verification'}</h1></div><div className="admin-user"><span className="admin-avatar">A</span><div><b>Super Admin</b><small>{profile?.username||session?.user.email}</small></div></div></header>
         {adminError&&<div className="admin-error">{adminError}<button type="button" onClick={()=>setAdminError('')}>Dismiss</button></div>}
         {adminBusy&&<div className="admin-loading">Updating workspace…</div>}
         {adminTab==='overview'&&<div className="admin-content">
@@ -410,6 +401,7 @@ export default function App(){
             <div className="editor-actions"><button type="button" className="button secondary" onClick={()=>setAdminTab('questions')}>Cancel</button><button type="submit" className="button primary" disabled={editorBusy||!editor.subject_id||!editor.topic_id}>{editorBusy?'Saving…':editor.id?'Save changes':editor.status==='published'?'Publish question':'Save draft'} →</button></div>
           </form>
         </div>}
+        {adminTab==='topics'&&<AdminTopics classes={classes} subjects={subjects} topics={topics} onChanged={async()=>{try{await loadTaxonomy()}catch(e){setAdminError(errText(e))}}}/>}
         {adminTab==='contacts'&&<div className="admin-content"><div className="table-toolbar"><div><h2>Adult promotional opt-ins</h2><p>Only adult account holders who explicitly opted in appear here.</p></div><span className="privacy-badge">CONSENT REQUIRED</span></div><div className="notice-card"><b>Use these contacts responsibly.</b><p>This list excludes under-18 learners and guardian contacts. Contact adults only for the channels and purpose they selected. Honour withdrawals promptly. This screen does not provide bulk advertising export.</p></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Account holder</th><th>Contact</th><th>Channels</th><th>Consent date</th></tr></thead><tbody>{contacts.map(c=><tr key={c.user_id}><td><b>{c.display_name||c.username}</b><small>{c.username}</small></td><td>{c.email}<small>{c.contact_phone||'No phone number'}</small></td><td><div className="channel-list">{c.marketing_channels.map(ch=><span key={ch}>{ch}</span>)}</div></td><td>{dateText(c.marketing_opt_in_at)}</td></tr>)}{contacts.length===0&&<tr><td colSpan={4} className="empty-cell">No adult promotional opt-ins recorded yet.</td></tr>}</tbody></table></div></div>}
         {adminTab==='guardians'&&<div className="admin-content"><div className="table-toolbar"><div><h2>Guardian verification</h2><p>Verify parent / guardian permission before enabling under-18 learner access.</p></div><span className="privacy-badge amber-badge">LEARNING ACCESS PENDING</span></div><div className="notice-card"><b>Verification is not a checkbox.</b><p>Independently confirm the person is the learner's parent or legal guardian, record how verification was completed, and only then approve. This is an account-safeguarding workflow, not a promotional contact list.</p></div><div className="guardian-list">{guardians.map(row=><article className="guardian-card" key={row.user_id}><div className="guardian-card-head"><div><b>{row.display_name}</b><small>{row.username} · Registered {dateText(row.created_at)}</small></div><span className="status-pill pending">Pending</span></div><div className="guardian-details"><div><small>GUARDIAN</small><b>{row.guardian_name||'Not supplied'}</b></div><div><small>EMAIL</small><b>{row.guardian_email||'Not supplied'}</b></div><div><small>PHONE</small><b>{row.guardian_phone||'Not supplied'}</b></div></div><label className="full-field">Verification note<textarea rows={2} value={guardianNotes[row.user_id]||''} onChange={e=>setGuardianNotes({...guardianNotes,[row.user_id]:e.target.value})} placeholder="Record the independent verification method and date…"/></label><div className="row-actions"><button type="button" className="button primary" onClick={()=>verifyGuardian(row,true)}>Verify guardian &amp; enable learning</button><button type="button" className="button secondary danger-button" onClick={()=>verifyGuardian(row,false)}>Reject request</button></div></article>)}{guardians.length===0&&<div className="empty-state"><b>No pending guardian requests.</b><p>New under-18 registrations requiring review appear here.</p></div>}</div></div>}
       </section>
@@ -424,8 +416,9 @@ export default function App(){
         <div className="student-identity"><div className="student-avatar">{display.slice(0,1).toUpperCase()}</div><div><small>YOUR ASSIGNED USERNAME</small><b>{profile?.username||'Preparing username…'}</b><span>{session?.user.email}</span></div><span className="free-pill">FREE ACCOUNT</span></div>
         {guardianPending?<div className="guardian-pending"><div className="pending-icon">!</div><div><b>Guardian verification is pending</b><p>Learning access for this under-18 account is held until a parent or legal guardian is independently verified. Guardian contact details are used for account-safety communication, not promotional advertising.</p></div></div>
         :<div className="account-paths"><button type="button" className="account-path-card" onClick={()=>openStudy('k12')}><span className="path-icon">✳</span><small>SCHOOL LEARNING</small><h2>K–12</h2><p>Explore class-wise learning from Primary to Senior Secondary.</p><b>Explore K–12 →</b></button><button type="button" className="account-path-card" onClick={()=>openStudy('gk_gs')}><span className="path-icon">⌁</span><small>COMPETITIVE EXAMS</small><h2>GK &amp; GS</h2><p>Practise General Knowledge and General Studies topic by topic.</p><b>Explore GK &amp; GS →</b></button></div>}
+        {!guardianPending&&<ProgressPanel/>}
         {profile?.age_group==='18_plus'&&<div className="account-settings-card"><div><small>COMMUNICATION PREFERENCES</small><h3>Optional adult updates</h3><p>Choose whether SYNAPTYL may send occasional product announcements and learning-resource updates.</p></div><div className="account-consent-control"><label className="check-row"><input type="checkbox" checked={Boolean(profile.marketing_opt_in)} onChange={e=>setProfile({...profile,marketing_opt_in:e.target.checked})}/> I agree to receive optional updates.</label><div className="channel-picks">{['email','sms','whatsapp'].map(ch=><label className="check-chip" key={ch}><input type="checkbox" checked={marketingChannels.includes(ch)} onChange={()=>toggleChannel(ch)}/>{ch.toUpperCase()}</label>)}</div><div className="account-consent-actions"><button className="button secondary" type="button" disabled={marketingBusy} onClick={()=>saveMarketing(false)}>Withdraw consent</button><button className="button primary" type="button" disabled={marketingBusy} onClick={()=>saveMarketing(true)}>Save preference</button></div>{marketingMessage&&<small className="form-feedback">{marketingMessage}</small>}</div></div>}
-        <div className="account-note">SYNAPTYL is free for every learner. Practice tools and question libraries are being built out by learning area.</div>{isAdmin&&<button type="button" className="admin-shortcut" onClick={()=>{setAdminTab('overview');go('admin')}}>Open Super Admin dashboard →</button>}
+        <div className="account-note">SYNAPTYL is free for every learner. New questions are added regularly, so check back often.</div>{isAdmin&&<button type="button" className="admin-shortcut" onClick={()=>{setAdminTab('overview');go('admin')}}>Open Super Admin dashboard →</button>}
       </section></main>
   }
 
@@ -442,26 +435,22 @@ export default function App(){
         {studyError&&<div className="auth-alert error">{studyError}</div>}{studyBusy&&<div className="empty-state">Loading practice questions…</div>}
         {!studyTopic&&!studyBusy&&<div className="study-empty"><div className="empty-illustration">✳</div><h2>Choose where to begin.</h2><p>Select a class or learning area, then pick a topic to see available questions.</p></div>}
         {studyTopic&&!studyBusy&&questions.length===0&&!studyError&&<div className="study-empty"><h2>Questions coming soon.</h2><p>This topic has not been populated yet.</p></div>}
-        {current&&<section className="practice-card"><div className="practice-topline"><span>QUESTION {questionIndex+1} OF {questions.length}</span><span>{current.difficulty.toUpperCase()}</span></div><div className="practice-progress"><span style={{width:((questionIndex+1)/questions.length*100)+'%'}}/></div><div className="practice-meta"><span>{current.question_type.toUpperCase()}</span><span>{current.marks} mark{current.marks===1?'':'s'}</span></div><h2>{current.prompt}</h2>
+        {finished&&<section className="practice-card practice-summary"><div className="practice-topline"><span>TOPIC COMPLETE</span></div><h2>{stats.correct} of {stats.correct+stats.incorrect} correct</h2>{stats.correct+stats.incorrect>0&&<div className="practice-progress"><span style={{width:(stats.correct/Math.max(1,stats.correct+stats.incorrect)*100)+'%'}}/></div>}<div className="summary-stats"><div><strong>{stats.answered}</strong><span>answered</span></div><div><strong>{stats.correct}</strong><span>correct</span></div><div><strong>{stats.incorrect}</strong><span>to revise</span></div><div><strong>{stats.marks}</strong><span>marks</span></div></div>{stats.review>0&&<p className="study-intro">{stats.review} written answer{stats.review===1?' was':'s were'} saved for review.</p>}<div className="practice-actions"><button type="button" className="button secondary" onClick={()=>{setStudyTopic('');setQuestions([]);setFinished(false)}}>Choose another topic</button><button type="button" className="button primary" onClick={()=>void loadTopic(studyTopic)}>Practise again</button></div></section>}
+        {current&&!finished&&<section className="practice-card"><div className="practice-topline"><span>QUESTION {questionIndex+1} OF {questions.length}</span><span>{current.difficulty.toUpperCase()}</span></div><div className="practice-progress"><span style={{width:((questionIndex+1)/questions.length*100)+'%'}}/></div><div className="practice-meta"><span>{current.question_type.toUpperCase()}</span><span>{current.marks} mark{current.marks===1?'':'s'}</span></div><h2>{current.prompt}</h2>
           {current.question_type==='mcq'?<div className="practice-options">{current.question_options.map((opt,i)=><button key={opt.id} type="button" disabled={Boolean(answerResult)} className={'practice-option '+(chosenOption===opt.id?'selected':'')+(answerResult?.correct_option_id===opt.id?' right-answer':'')} onClick={()=>setChosenOption(opt.id)}><span>{String.fromCharCode(65+i)}</span>{opt.option_text||opt.text}</button>)}</div>:<label className="practice-answer-label">{current.question_type==='numerical'?'Your numerical answer':'Your written answer'}<textarea rows={current.question_type==='written'?5:2} value={answerText} disabled={Boolean(answerResult)} onChange={e=>setAnswerText(e.target.value)} placeholder="Type your answer here…"/></label>}
           {answerResult&&<div className={'answer-feedback '+(answerResult.status==='correct'?'correct':answerResult.status==='incorrect'?'incorrect':'review')}><b>{answerResult.status==='correct'?'Correct answer!':answerResult.status==='incorrect'?'Not quite. Review the explanation.':'Answer submitted for review.'}</b>{answerResult.marks_awarded!==null&&<span>Marks awarded: {answerResult.marks_awarded}</span>}{answerResult.explanation&&<p>{answerResult.explanation}</p>}{answerResult.status==='submitted_for_review'&&<p>Your written answer has been saved. Written answers are not automatically graded.</p>}</div>}
-          <div className="practice-actions"><button type="button" className="bookmark-button" disabled={!answerResult} onClick={toggleBookmark}>☆ {bookmarked?'Saved':'Save question'}</button>{!answerResult?<button type="button" className="button primary" onClick={submitAnswer} disabled={answerBusy}>{answerBusy?'Checking…':'Submit answer →'}</button>:<button type="button" className="button primary" onClick={nextQuestion} disabled={questionIndex>=questions.length-1}>{questionIndex>=questions.length-1?'Topic completed':'Next question →'}</button>}</div>
+          <div className="practice-actions"><button type="button" className="bookmark-button" disabled={!answerResult} onClick={toggleBookmark}>☆ {bookmarked?'Saved':'Save question'}</button>{!answerResult?<button type="button" className="button primary" onClick={submitAnswer} disabled={answerBusy}>{answerBusy?'Checking…':'Submit answer →'}</button>:<button type="button" className="button primary" onClick={()=>questionIndex>=questions.length-1?setFinished(true):nextQuestion()}>{questionIndex>=questions.length-1?'See your score':'Next question →'}</button>}</div>
         </section>}
       </section></main>
   }
 
-  return <main>
-    <header className="site-header"><a className="brand" href="#home"><span className="brand-mark">S</span><span>SYNAPTYL</span></a><nav aria-label="Main navigation"><a href="#k12">K–12</a><a href="#gk-gs">GK &amp; GS</a><a href="#how-it-works">How it works</a><a href="#about">About</a></nav>
-      {session?<div className="header-auth-actions">{isAdmin&&<button className="header-admin" type="button" onClick={()=>{setAdminTab('overview');go('admin')}}>Admin</button>}<button className="header-signup" type="button" onClick={()=>go('account')}>My learning ↗</button></div>:<div className="header-auth-actions"><button className="header-login" type="button" onClick={()=>openAuth('login')}>Sign in</button><button className="header-signup" type="button" onClick={()=>openAuth('signup')}>Join free <span>↗</span></button></div>}
-    </header>
-    <section className="hero" id="home"><div className="hero-copy"><div className="eyebrow"><i/> OPEN LEARNING. ZERO COST.</div><h1>Learn more.<br/><em>Move forward.</em></h1><p className="hero-description">A free place to practise, learn and grow. Choose school learning for Classes 1–12 or GK &amp; GS practice for competitive examinations.</p><div className="hero-actions"><button className="button primary" type="button" onClick={()=>session?go('account'):openAuth('signup')}>Start learning <span>→</span></button><a className="button secondary" href="#how-it-works">How it works</a></div><div className="hero-note"><b>✓</b> Free for every learner. No premium walls.</div></div>
-      <div className="hero-art" aria-label="Illustration of a learning progress dashboard"><div className="orbit orbit-a"/><div className="orbit orbit-b"/><div className="dashboard"><div className="dash-top"><small>YOUR LEARNING SPACE</small><i/></div><h2>Progress, not pressure.</h2><div className="progress-label"><span>Today’s practice</span><b>Keep going</b></div><div className="progress"><span/></div><div className="tiles"><div className="tile lavender"><strong>✳</strong><small>LEARN</small><b>Understand</b></div><div className="tile mint"><strong>↗</strong><small>PRACTISE</small><b>Strengthen</b></div><div className="tile peach"><strong>◎</strong><small>REVIEW</small><b>Remember</b></div><div className="tile blue"><strong>✦</strong><small>GROW</small><b>Improve</b></div></div><div className="dash-foot">✦ <span>Every question is a chance to grow.</span></div></div><div className="float-note left-note">✦ &nbsp; One question at a time</div><div className="float-note right-note">↗ &nbsp; Your pace. Your progress.</div></div>
-    </section>
-    <section className="promise-strip"><div><b>01</b> Learn with clarity</div><div><b>02</b> Practise with purpose</div><div><b>03</b> Track your progress</div><div><b>04</b> Always free to use</div></section>
-    <section className="section learning-section k12-section" id="k12"><div className="section-heading"><div><div className="eyebrow">01 · SCHOOL LEARNING</div><h2>Learning for<br/>every school stage.</h2></div><p>Explore class-wise practice for Classes 1–12. Build understanding, strengthen concepts and develop confidence one question at a time.</p></div><div className="school-grid">{groups.map(g=><article className="school-card" key={g.title}><div className="school-card-top"><span>{g.icon}</span><small>{g.range}</small></div><h3>{g.title}</h3><p>{g.copy}</p><button type="button" className="card-link" onClick={()=>openStudy('k12')}>Explore classes <b>↗</b></button></article>)}</div><div className="subject-band"><div><small>SUBJECTS</small><b>Learn across the curriculum</b></div><div className="topic-tags">{['Mathematics','Science','English','Social Science','Computer Science'].map(s=><span className="topic-tag" key={s}>{s}</span>)}</div></div></section>
-    <section className="section learning-section gkgs-section" id="gk-gs"><div className="section-heading"><div><div className="eyebrow">02 · COMPETITIVE EXAM PREPARATION</div><h2>GK &amp; GS.<br/>One focused place.</h2></div><p>Prepare for competitive examinations with topic-wise General Knowledge and General Studies practice, revision and explanations.</p></div><div className="gkgs-grid">{gkgs.map((x,i)=><article className="gkgs-card" key={x.title}><small>0{i+1}</small><h3>{x.title}</h3><p>{x.copy}</p><button type="button" aria-label={'Explore '+x.title} onClick={()=>openStudy('gk_gs')}>↗</button></article>)}</div><div className="exam-band"><div><small>EXAM CATEGORIES</small><b>Practise for your target exam</b></div><div className="topic-tags">{['SSC','Railway','Teaching','Banking','Defence','Other competitive exams'].map(x=><span className="topic-tag" key={x}>{x}</span>)}</div></div></section>
-    <section className="section how-section" id="how-it-works"><div className="eyebrow">A SIMPLE WAY TO GET BETTER</div><h2>Learn. Practise. Reflect.</h2><div className="steps">{[['01','Choose your section','Start with K–12 school learning or GK & GS for competitive exams.'],['02','Try questions','Work through questions at your own pace and learn from explanations.'],['03','See your growth','Use your practice history to spot strengths and topics to revisit.']].map(([n,t,b])=><article key={n}><small>{n}</small><h3>{t}</h3><p>{b}</p></article>)}</div></section>
-    <section className="closing" id="about"><div><div className="eyebrow light">YOUR NEXT STEP STARTS HERE</div><h2>Make practice part<br/>of your progress.</h2></div><button className="button light-button" type="button" onClick={()=>session?go('account'):openAuth('signup')}>Start exploring <span>→</span></button></section>
-    <footer><a className="brand" href="#home"><span className="brand-mark">S</span><span>SYNAPTYL</span></a><span>Practice. Progress. Master.</span><span>© {new Date().getFullYear()} SYNAPTYL</span></footer>
-  </main>
+  return <Home
+    signedIn={Boolean(session)}
+    isAdmin={isAdmin}
+    onSignIn={()=>openAuth('login')}
+    onJoin={()=>openAuth('signup')}
+    onAccount={()=>go('account')}
+    onAdmin={()=>{setAdminTab('overview');go('admin')}}
+    onStudy={track=>void openStudy(track)}
+  />
 }

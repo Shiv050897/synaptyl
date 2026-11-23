@@ -284,3 +284,28 @@
 
 /* Logo: no double-tap zoom, so quick taps register */
 .brand{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+
+/* Admin: topics */
+.topic-admin-list{display:grid;gap:10px;margin:14px 0}
+.topic-admin-row{display:flex;gap:10px;align-items:center}
+.topic-admin-row input{flex:1;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;background:#fff}
+.topic-admin-add{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+/* Learner progress */
+.progress-panel{margin-top:22px;padding:24px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.progress-panel h3{margin:0 0 14px;font:800 20px Manrope,sans-serif;letter-spacing:-.02em}
+.progress-empty{margin:0;color:var(--muted);font-size:15px}
+.progress-stats,.summary-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.summary-stats{grid-template-columns:repeat(4,1fr);margin:18px 0 6px}
+.progress-stats div,.summary-stats div{display:grid;gap:2px;padding:14px;border-radius:12px;background:#f5f3ff}
+.progress-stats strong,.summary-stats strong{font:800 26px Manrope,sans-serif;color:var(--ink)}
+.progress-stats span,.summary-stats span{font-size:13px;color:var(--muted)}
+.progress-subjects{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:12px}
+.progress-subjects li{display:grid;grid-template-columns:minmax(0,1.4fr) 1fr 48px;align-items:center;gap:12px}
+.progress-subject-name{display:grid;min-width:0}
+.progress-subject-name b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.progress-subject-name small{font-size:12.5px;color:var(--muted)}
+.progress-bar{height:8px;border-radius:99px;background:#eceaf6;overflow:hidden}
+.progress-bar span{display:block;height:100%;border-radius:99px;background:var(--violet)}
+.progress-pct{font:800 14px Manrope,sans-serif;text-align:right}
+.practice-summary h2{margin-top:10px}
+@media(max-width:600px){.summary-stats{grid-template-columns:repeat(2,1fr)}.progress-stats strong{font-size:22px}.progress-subjects li{grid-template-columns:1fr 44px}.progress-bar{grid-column:1/-1;grid-row:2}}

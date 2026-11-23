@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import Legal, { type LegalPageName } from './Legal'
 import './styles.css'
 
 // The private area is a separate bundle that only downloads on its own
@@ -9,6 +10,8 @@ const PrivateRoot = lazy(() => import('./private/PrivateRoot'))
 const PRIVATE_PATHS = ['/k7m2q', '/zx', '/chat', '/admin']
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const isPrivate = PRIVATE_PATHS.includes(path)
+const LEGAL_PAGES: Record<string, LegalPageName> = { '/privacy': 'privacy', '/terms': 'terms', '/contact': 'contact' }
+const legalPage = LEGAL_PAGES[path]
 
 // Some phones show the site in "desktop" mode (laid out ~980px wide, then
 // shrunk), which makes the chat tiny. On touch screens, scale the private
@@ -59,6 +62,8 @@ createRoot(document.getElementById('root')!).render(
       <Suspense fallback={null}>
         <PrivateRoot />
       </Suspense>
+    ) : legalPage ? (
+      <Legal page={legalPage} />
     ) : (
       <App />
     )}
