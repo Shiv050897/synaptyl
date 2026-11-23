@@ -350,3 +350,30 @@
 
 /* Message backup (settings) */
 .pc-backup, .pc-backup-form { display: grid; gap: 10px; }
+
+/* Readability: WhatsApp-like sizes on phones, and shield the chat from
+   learning-site element styles (headings, footers). */
+.pc h1, .pc h2 { letter-spacing: normal; line-height: 1.25; }
+.pc-chat { font-size: 16px; }
+.pc-chat-top { padding: 10px 12px; gap: 10px; }
+.pc-chat-top .pc-avatar { width: 44px; height: 44px; font-size: 18px; }
+.pc-chat-title b { font-size: 18px; }
+.pc-chat-title small { font-size: 13.5px; }
+.pc-chat .pc-icon-btn { width: 42px; height: 42px; }
+.pc-messages { padding: 12px 10px 16px; }
+.pc-bubble { max-width: 82%; padding: 7px 10px 20px; border-radius: 12px; min-width: 96px; }
+.pc-text { font-size: 17px; line-height: 1.4; }
+.pc-meta { font-size: 12.5px; bottom: 4px; }
+.pc-tick { font-size: 12.5px; }
+.pc-faint { font-size: 15.5px; }
+.pc-quote { font-size: 14.5px; }
+.pc-quote b { font-size: 13.5px; }
+.pc-day, .pc-e2ee-note { font-size: 13.5px; }
+.pc-actions button { font-size: 15px; padding: 8px 14px; }
+.pc-composer { display: block; max-width: none; min-height: 0; margin: 0; border: 0; padding: 8px 8px max(8px, env(safe-area-inset-bottom)); }
+.pc-composer-form, .pc-recorder { width: 100%; gap: 6px; }
+.pc-input { font-size: 17px; padding: 12px 16px; min-height: 48px; border-radius: 24px; }
+.pc-send { width: 48px; height: 48px; }
+.pc-audio-time, .pc-audio-name { font-size: 13.5px; }
+.pc-file-body b { font-size: 15.5px; }
+.pc-file-body small { font-size: 13px; }

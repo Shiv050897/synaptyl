@@ -438,7 +438,7 @@ export default function ChatRoom({
   let lastDay = ''
   return (
     <div className={`pc pc-chat pc-theme-${theme.mode}`} style={{ ['--pc-accent' as string]: theme.accent } as CSSProperties}>
-      <header className="pc-chat-top">
+      <div className="pc-chat-top">
         <div className="pc-avatar" aria-hidden="true">
           {photos.get(peer.user_id) ? <img src={photos.get(peer.user_id)!} alt="" /> : peer.username.slice(0, 1).toUpperCase()}
         </div>
@@ -460,7 +460,7 @@ export default function ChatRoom({
         <button className="pc-icon-btn" type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" /></svg>
         </button>
-      </header>
+      </div>
 
       <div
         className="pc-messages"
@@ -538,7 +538,7 @@ export default function ChatRoom({
         </div>
       )}
 
-      <footer className="pc-composer">
+      <div className="pc-composer">
         {recording ? (
           <Recorder
             onCancel={() => setRecording(false)}
@@ -590,7 +590,7 @@ export default function ChatRoom({
             )}
           </form>
         )}
-      </footer>
+      </div>
 
       <CallScreen call={call} peerName={peer.username} />
 
