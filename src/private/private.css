@@ -459,3 +459,16 @@
 .pc-bubble { max-width: min(88%, max(520px, calc(260px * var(--pc-fs)))); }
 .pc-text { overflow-wrap: anywhere; }
 .pc-textsize-preview { max-height: 140px; white-space: nowrap; }
+
+/* Time and ticks flow after the text (never overlap it, at any text size) */
+.pc-bubble { padding: 6px 10px 6px; }
+.pc-bubble::after { content: ''; display: block; clear: both; }
+.pc-meta {
+  position: relative; right: auto; bottom: auto; float: right;
+  margin: 6px 0 -2px 12px; line-height: 1.1; white-space: nowrap;
+}
+.pc-bubble.pc-bubble-bare { padding: 2px 4px 4px; }
+.pc-bubble-bare .pc-meta { float: right; margin-top: 4px; }
+.pc-text { display: inline; }
+.pc-text.pc-text-jumbo { display: block; }
+.pc-quote, .pc-audio, .pc-photo, .pc-video, .pc-file, .pc-callrow, .pc-sticker { margin-bottom: 2px; }
