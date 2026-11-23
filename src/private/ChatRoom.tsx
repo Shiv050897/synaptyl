@@ -14,6 +14,7 @@ import BackupSection from './BackupSection'
 import Picker from './Picker'
 import CallsPanel, { CallIcon, callLabel, formatDuration, type CallEntry } from './CallsPanel'
 import { isJumboEmoji, stickerById } from './stickers'
+import { disablePush, enablePush, notifyPeer, pushStatus, refreshPush, type PushStatus } from './push'
 import { avatarUrl, removeAvatar, setAvatar, type ProfileRow } from './avatars'
 import { loadTheme, saveTheme, type ChatTheme } from './theme'
 import { useCall, type SignalEnvelope } from './useCall'
@@ -96,6 +97,8 @@ export default function ChatRoom({
   const [photoBusy, setPhotoBusy] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [showCalls, setShowCalls] = useState(false)
+  const [push, setPush] = useState<PushStatus>(() => pushStatus())
+  const [pushDismissed, setPushDismissed] = useState(() => { try { return localStorage.getItem('syn-pc-push-dismissed') === '1' } catch { return false } })
   const [callEntries, setCallEntries] = useState<CallEntry[]>([])
   const [callsLoading, setCallsLoading] = useState(false)
 
@@ -133,8 +136,12 @@ export default function ChatRoom({
   const call = useCall({
     meId: me.user_id, peerId: peer.user_id, sharedFor, myVersion: myLatest, peerVersion: peerLatest, transmit,
     onLog: (entry) => logCallRef.current(entry),
+    onRing: (media) => notifyPeer({ type: 'call', media }),
   })
   const onEnvelopeRef = useRef(call.onEnvelope)
+  const resendOfferRef = useRef(call.resendOffer)
+  resendOfferRef.current = call.resendOffer
+  const peerOnlineRef = useRef(false)
   const applyProfilesRef = useRef<(rows: ProfileRow[]) => Promise<void>>(async () => {})
   onEnvelopeRef.current = call.onEnvelope
 
@@ -168,6 +175,24 @@ export default function ChatRoom({
       return next
     })
   }, [decode])
+
+  // ---- notifications ----------------------------------------------------
+  useEffect(() => { void refreshPush() }, [])
+  const signOutHere = async () => {
+    await disablePush().catch(() => {})
+    onSignOut()
+  }
+  async function turnOnPush() {
+    try {
+      setPush(await enablePush())
+    } catch {
+      setError('Could not turn on notifications on this device.')
+    }
+  }
+  async function turnOffPush() {
+    await disablePush().catch(() => {})
+    setPush(pushStatus() === 'granted' ? 'default' : pushStatus())
+  }
 
   // ---- profile photos ---------------------------------------------------
   const applyProfiles = useCallback(async (rows: ProfileRow[]) => {
@@ -285,7 +310,10 @@ export default function ChatRoom({
         void onEnvelopeRef.current(msg.payload as SignalEnvelope)
       })
       .on('presence', { event: 'sync' }, () => {
-        setPeerOnline(Object.keys(channel.presenceState()).includes(peer.user_id))
+        const online = Object.keys(channel.presenceState()).includes(peer.user_id)
+        if (online && !peerOnlineRef.current) resendOfferRef.current()
+        peerOnlineRef.current = online
+        setPeerOnline(online)
       })
 
     void (async () => {
@@ -371,6 +399,7 @@ export default function ChatRoom({
       return new Map(prev).set(id, { ...current, local: insertError ? 'failed' : undefined })
     })
     if (insertError) setError('A message could not be sent.')
+    else if (kind !== 'call') notifyPeer({ type: 'message', message_id: id })
   }
 
   async function sendText(e: FormEvent) {
@@ -508,7 +537,7 @@ export default function ChatRoom({
         <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Settings" title="Settings">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         </button>
-        <button className="pc-icon-btn" type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
+        <button className="pc-icon-btn" type="button" onClick={() => void signOutHere()} aria-label="Sign out" title="Sign out">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" /></svg>
         </button>
       </div>
@@ -596,6 +625,16 @@ export default function ChatRoom({
         {peerTyping && <div className="pc-bubble-row theirs"><div className="pc-bubble pc-typing"><span /><span /><span /></div></div>}
       </div>
 
+      {push === 'default' && !pushDismissed && canSend && (
+        <div className="pc-banner pc-banner-push">
+          <span>Turn on notifications to know when a message or call arrives.</span>
+          <button type="button" className="pc-btn pc-btn-primary" onClick={() => void turnOnPush()}>Turn on</button>
+          <button type="button" className="pc-icon-btn" aria-label="Not now" onClick={() => {
+            setPushDismissed(true)
+            try { localStorage.setItem('syn-pc-push-dismissed', '1') } catch { /* ignore */ }
+          }}>✕</button>
+        </div>
+      )}
       {error && <div className="pc-banner" role="alert" onClick={() => setError('')}>{error} <small>(tap to dismiss)</small></div>}
       {!canSend && !loading && (
         <div className="pc-banner pc-banner-info">
@@ -708,7 +747,13 @@ export default function ChatRoom({
           onPhoto={(f) => void changePhoto(f)}
           onRemovePhoto={() => void deletePhoto()}
           onClose={() => setShowInfo(false)}
-          onSignOut={onSignOut}
+          onSignOut={() => void signOutHere()}
+          notifications={
+            push === 'unsupported' ? <p className="pc-muted">This browser can't show notifications. On iPhone, add the chat to your home screen first.</p>
+            : push === 'denied' ? <p className="pc-muted">Notifications are blocked. Allow them for this site in your browser or phone settings.</p>
+            : push === 'granted' ? <div className="pc-row"><p className="pc-muted">On: you'll be alerted to new messages and calls.</p><button className="pc-btn" type="button" onClick={() => void turnOffPush()}>Turn off</button></div>
+            : <div className="pc-row"><p className="pc-muted">Get alerts for new messages and calls, even when the chat is closed.</p><button className="pc-btn pc-btn-primary" type="button" onClick={() => void turnOnPush()}>Turn on</button></div>
+          }
           backup={
             <BackupSection
               meId={me.user_id}
