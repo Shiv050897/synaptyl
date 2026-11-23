@@ -472,3 +472,7 @@
 .pc-text { display: inline; }
 .pc-text.pc-text-jumbo { display: block; }
 .pc-quote, .pc-audio, .pc-photo, .pc-video, .pc-file, .pc-callrow, .pc-sticker { margin-bottom: 2px; }
+/* Phone showing the desktop version: scale the private area back to phone size */
+html.pc-fit .pc { zoom: var(--pc-zoom, 1); }
+html.pc-fit .pc { min-height: calc(100dvh / var(--pc-zoom, 1)); }
+html.pc-fit .pc-chat { height: calc(100dvh / var(--pc-zoom, 1)); max-width: none; }
