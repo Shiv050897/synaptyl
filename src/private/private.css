@@ -193,7 +193,7 @@
 .pc-recorder { align-items: center; }
 .pc-input {
   flex: 1; resize: none; max-height: 140px; padding: 10px 14px; font: 15px 'DM Sans', sans-serif;
-  border: none; border-radius: 22px; background: var(--pc-field); color: var(--pc-ink); outline: none; field-sizing: content;
+  border: none; border-radius: 22px; background: var(--pc-field); color: var(--pc-ink); outline: none; width: 100%; min-width: 0; overflow-y: auto; line-height: 1.35;
 }
 .pc-send {
   width: 44px; height: 44px; flex: none; border-radius: 50%; border: none; cursor: pointer;
@@ -336,3 +336,14 @@
 }
 .pc-wallpaper-tile.active { border-color: var(--pc-accent); }
 .pc-wallpaper-tile span { padding: 2px 6px; border-radius: 6px; background: var(--pc-card); }
+
+/* Call: tappable self-view (tap to swap) and zoomable main video */
+.pc-call-self-btn {
+  position: absolute; right: 14px; top: max(14px, env(safe-area-inset-top)); z-index: 3;
+  width: 110px; aspect-ratio: 3 / 4; padding: 0; border: none; border-radius: 12px; overflow: hidden;
+  background: #111; box-shadow: 0 4px 20px rgb(0 0 0 / .4); cursor: pointer;
+}
+.pc-call-self-btn .pc-call-self { position: static; width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+.pc-call-self.peer { transform: none; }
+.pc-call-remote { transform-origin: center; will-change: transform; }
+.pc-call { touch-action: none; }

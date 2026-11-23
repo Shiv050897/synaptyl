@@ -91,6 +91,7 @@ export default function ChatRoom({
   const dirRef = useRef(directory)
   dirRef.current = directory
   const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const channelRef = useRef<ReturnType<typeof sb.channel> | null>(null)
   const typingTimer = useRef<number | undefined>(undefined)
   const lastTypingSent = useRef(0)
@@ -284,6 +285,14 @@ export default function ChatRoom({
       channelRef.current = null
     }
   }, [sb, me.user_id, peer.user_id, upsertRows, markRead])
+
+  // Grow the message box with its text, up to about 5 lines.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`
+  }, [text])
 
   // ---- ordering + scrolling ---------------------------------------------
   const ordered = useMemo(
@@ -545,6 +554,7 @@ export default function ChatRoom({
               />
             </label>
             <textarea
+              ref={inputRef}
               className="pc-input"
               rows={1}
               placeholder="Message"
