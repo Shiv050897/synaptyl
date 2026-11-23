@@ -377,3 +377,34 @@
 .pc-audio-time, .pc-audio-name { font-size: 13.5px; }
 .pc-file-body b { font-size: 15.5px; }
 .pc-file-body small { font-size: 13px; }
+
+/* Emoji / sticker / GIF panel */
+.pc-picker { display: grid; grid-template-rows: auto auto 1fr; height: min(46dvh, 340px); margin-bottom: 8px; border-radius: 14px; background: var(--pc-field); overflow: hidden; }
+.pc-picker-tabs { display: flex; border-bottom: 1px solid var(--pc-line); }
+.pc-picker-tabs button { flex: 1; padding: 10px; border: none; background: none; cursor: pointer; color: var(--pc-muted); font: 600 15px 'DM Sans', sans-serif; border-bottom: 3px solid transparent; }
+.pc-picker-tabs button.active { color: var(--pc-accent); border-bottom-color: var(--pc-accent); }
+.pc-picker-groups { display: flex; gap: 2px; padding: 4px 6px; overflow-x: auto; }
+.pc-picker-groups button { flex: none; width: 38px; height: 34px; border: none; border-radius: 8px; background: none; font-size: 20px; cursor: pointer; opacity: .55; }
+.pc-picker-groups button.active { opacity: 1; background: var(--pc-card); }
+.pc-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); align-content: start; padding: 4px 6px 10px; overflow-y: auto; }
+.pc-emoji-grid button { height: 42px; border: none; background: none; font-size: 27px; cursor: pointer; border-radius: 8px; line-height: 1; }
+.pc-emoji-grid button:active { background: var(--pc-card); }
+.pc-sticker-grid { grid-row: 2 / 4; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; align-content: start; padding: 10px; overflow-y: auto; }
+.pc-sticker-grid button { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border: none; border-radius: 12px; background: none; cursor: pointer; color: var(--pc-ink); }
+.pc-sticker-grid button:active { background: var(--pc-card); }
+.pc-sticker-grid .pc-sticker-emoji { font-size: 44px; line-height: 1.1; }
+.pc-gif-tab { grid-row: 2 / 4; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 20px; text-align: center; }
+.pc-gif-tab label { cursor: pointer; }
+
+/* Stickers and big emoji in the chat */
+.pc-bubble.pc-bubble-bare { background: transparent; box-shadow: none; padding: 2px 4px 22px; }
+.pc-bubble-bare .pc-meta { padding: 1px 6px; border-radius: 8px; background: color-mix(in srgb, var(--pc-card) 80%, transparent); }
+.pc-sticker { display: grid; justify-items: center; gap: 2px; animation: pc-pop .35s ease-out; }
+.pc-sticker .pc-sticker-emoji { font-size: 96px; line-height: 1.05; filter: drop-shadow(0 3px 6px rgb(0 0 0 / .18)); }
+.pc-sticker-caption {
+  font: 800 13px Manrope, 'DM Sans', sans-serif; padding: 3px 9px; border-radius: 999px;
+  background: var(--pc-accent); color: var(--pc-accent-ink); white-space: nowrap;
+}
+.pc-sticker .pc-sticker-caption { font-size: 15px; margin-top: -6px; }
+.pc-text.pc-text-jumbo { font-size: 46px; line-height: 1.15; }
+@keyframes pc-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }

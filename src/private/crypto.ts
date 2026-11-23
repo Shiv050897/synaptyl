@@ -22,7 +22,7 @@ export type MediaInfo = {
   height?: number
 }
 
-export type Payload = { v: 1; text?: string; media?: MediaInfo }
+export type Payload = { v: 1; text?: string; media?: MediaInfo; sticker?: string }
 
 const enc = new TextEncoder()
 const dec = new TextDecoder()

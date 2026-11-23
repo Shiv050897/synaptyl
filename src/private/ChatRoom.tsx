@@ -11,6 +11,8 @@ import Recorder, { type Recording } from './Recorder'
 import CallScreen from './CallScreen'
 import SettingsPanel from './SettingsPanel'
 import BackupSection from './BackupSection'
+import Picker from './Picker'
+import { isJumboEmoji, stickerById } from './stickers'
 import { avatarUrl, removeAvatar, setAvatar, type ProfileRow } from './avatars'
 import { loadTheme, saveTheme, type ChatTheme } from './theme'
 import { useCall, type SignalEnvelope } from './useCall'
@@ -51,6 +53,7 @@ function preview(m: Msg | undefined) {
   if (!m) return 'Message'
   if (m.problem === 'deleted') return 'Deleted message'
   if (!m.payload) return 'Encrypted message'
+  if (m.payload.sticker) return `${stickerById(m.payload.sticker)?.emoji ?? '🙂'} Sticker`
   if (m.payload.text) return m.payload.text.slice(0, 120)
   switch (m.row.kind) {
     case 'voice': return '🎤 Voice note'
@@ -89,6 +92,7 @@ export default function ChatRoom({
   const [profiles, setProfiles] = useState<Map<string, ProfileRow>>(new Map())
   const [photos, setPhotos] = useState<Map<string, string | null>>(new Map())
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const dirRef = useRef(directory)
   dirRef.current = directory
@@ -408,6 +412,25 @@ export default function ChatRoom({
     await sendMedia(kind, file, { name })
   }
 
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current
+    const start = el?.selectionStart ?? text.length
+    const end = el?.selectionEnd ?? text.length
+    const next = text.slice(0, start) + emoji + text.slice(end)
+    setText(next)
+    requestAnimationFrame(() => {
+      if (!el) return
+      const pos = start + emoji.length
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
+  async function sendSticker(id: string) {
+    if (!canSend || !stickerById(id)) return
+    setPickerOpen(false)
+    await sendPayload('text', { v: 1, sticker: id }, null, crypto.randomUUID())
+  }
+
   function onType(value: string) {
     setText(value)
     const now = Date.now()
@@ -485,7 +508,8 @@ export default function ChatRoom({
               {showDay && <div className="pc-day">{d}</div>}
               <div className={`pc-bubble-row ${mine ? 'mine' : 'theirs'}`}>
                 <div
-                  className={`pc-bubble ${selected === m.row.id ? 'selected' : ''}`}
+                  className={`pc-bubble ${selected === m.row.id ? 'selected' : ''} ${
+                    m.payload?.sticker || (m.payload?.text && isJumboEmoji(m.payload.text)) ? 'pc-bubble-bare' : ''}`}
                   onClick={() => setSelected(selected === m.row.id ? null : m.row.id)}
                 >
                   {m.row.reply_to_id && (
@@ -497,7 +521,18 @@ export default function ChatRoom({
                   {m.problem === 'deleted' && <i className="pc-faint">🚫 This message was deleted</i>}
                   {m.problem === 'nokey' && <i className="pc-faint">🔒 Can't be read on this device</i>}
                   {m.problem === 'failed' && <i className="pc-faint">⚠️ Couldn't decrypt this message</i>}
-                  {m.payload?.text && <p className="pc-text">{m.payload.text}</p>}
+                  {m.payload?.sticker && (() => {
+                    const st = stickerById(m.payload.sticker)
+                    return (
+                      <div className="pc-sticker">
+                        <span className="pc-sticker-emoji">{st?.emoji ?? '🙂'}</span>
+                        {st?.caption && <span className="pc-sticker-caption">{st.caption}</span>}
+                      </div>
+                    )
+                  })()}
+                  {m.payload?.text && (
+                    <p className={`pc-text ${isJumboEmoji(m.payload.text) ? 'pc-text-jumbo' : ''}`}>{m.payload.text}</p>
+                  )}
                   {m.payload?.media && m.row.media_path && (
                     m.row.kind === 'voice' || m.row.kind === 'audio'
                       ? <AudioBubble path={m.row.media_path} media={m.payload.media} voice={m.row.kind === 'voice'} />
@@ -548,7 +583,21 @@ export default function ChatRoom({
             }}
           />
         ) : (
+          <>
+          {pickerOpen && (
+            <Picker
+              onEmoji={insertEmoji}
+              onSticker={(id) => void sendSticker(id)}
+              onGifFile={(f) => { setPickerOpen(false); void sendPickedFile(f) }}
+            />
+          )}
           <form className="pc-composer-form" onSubmit={sendText}>
+            <button className="pc-icon-btn" type="button" aria-label="Emoji, stickers and GIFs" disabled={!canSend}
+              onClick={() => setPickerOpen((o) => !o)}>
+              {pickerOpen
+                ? <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" /></svg>
+                : <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01" /></svg>}
+            </button>
             <label className="pc-icon-btn" aria-label="Send a photo, video, audio or document">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.5 12.5 21a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" /></svg>
               <input
@@ -589,6 +638,7 @@ export default function ChatRoom({
               </button>
             )}
           </form>
+          </>
         )}
       </div>
 
