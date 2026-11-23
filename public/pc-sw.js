@@ -13,7 +13,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     // Skip message alerts while the chat is open on screen; calls always ring.
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    const chatVisible = windows.some((w) => w.visibilityState === 'visible' && /\/(chat|zx|k7m2q)/.test(new URL(w.url).pathname))
+    const chatVisible = windows.some((w) => w.visibilityState === 'visible' && /^\/(chat|zx|k7m2q|s|admin)\/?$/.test(new URL(w.url).pathname))
     if (chatVisible && !isCall) return
     await self.registration.showNotification(title, {
       body: data.body || 'New message',
@@ -33,7 +33,7 @@ self.addEventListener('notificationclick', (event) => {
   const target = (event.notification.data && event.notification.data.url) || '/zx'
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    const chat = windows.find((w) => /\/(chat|zx|k7m2q)/.test(new URL(w.url).pathname))
+    const chat = windows.find((w) => /^\/(chat|zx|k7m2q|s|admin)\/?$/.test(new URL(w.url).pathname))
     if (chat) return chat.focus()
     return self.clients.openWindow(target)
   })())
