@@ -4,10 +4,16 @@ export type ThemeMode = 'auto' | 'light' | 'dark'
 export type Wallpaper = 'classic' | 'plain' | 'dots' | 'sunset' | 'ocean' | 'forest'
 export type ChatTheme = { mode: ThemeMode; accent: string; wallpaper: Wallpaper; textScale: number }
 
-/** Text size steps (1 = normal). */
-export const TEXT_SCALES = [0.85, 0.92, 1, 1.1, 1.2, 1.32, 1.45, 1.6]
+/** Text size steps (1 = normal): 8 steps up to 500%. */
+export const TEXT_SCALES = [0.85, 1, 1.5, 2, 2.5, 3, 4, 5]
 export const textSizeLabel = (s: number) =>
-  s < 0.9 ? 'Smallest' : s < 1 ? 'Small' : s === 1 ? 'Normal' : s < 1.2 ? 'Large' : s < 1.4 ? 'Larger' : 'Largest'
+  `${Math.round(s * 100)}%${s === 1 ? ' (normal)' : ''} · step ${TEXT_SCALES.indexOf(s) + 1} of ${TEXT_SCALES.length}`
+
+/** Snaps any saved size to the closest available step. */
+export const nearestScale = (v: unknown) =>
+  typeof v === 'number' && Number.isFinite(v)
+    ? TEXT_SCALES.reduce((best, x) => (Math.abs(x - v) < Math.abs(best - v) ? x : best), 1)
+    : 1
 
 export const ACCENTS: { name: string; value: string }[] = [
   { name: 'Green', value: '#00a884' },
@@ -39,7 +45,7 @@ export function loadTheme(userId: string): ChatTheme {
       mode: raw.mode === 'light' || raw.mode === 'dark' ? raw.mode : 'auto',
       accent: ACCENTS.some((a) => a.value === raw.accent) ? raw.accent! : DEFAULT_THEME.accent,
       wallpaper: WALLPAPERS.some((w) => w.id === raw.wallpaper) ? raw.wallpaper! : 'classic',
-      textScale: TEXT_SCALES.includes(raw.textScale as number) ? raw.textScale! : 1,
+      textScale: nearestScale(raw.textScale),
     }
   } catch {
     return DEFAULT_THEME

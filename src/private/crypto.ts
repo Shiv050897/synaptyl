@@ -22,7 +22,10 @@ export type MediaInfo = {
   height?: number
 }
 
-export type Payload = { v: 1; text?: string; media?: MediaInfo; sticker?: string }
+export type CallOutcome = 'completed' | 'no-answer' | 'declined' | 'busy' | 'cancelled' | 'failed'
+export type CallInfo = { media: 'audio' | 'video'; outcome: CallOutcome; duration?: number }
+
+export type Payload = { v: 1; text?: string; media?: MediaInfo; sticker?: string; call?: CallInfo }
 
 const enc = new TextEncoder()
 const dec = new TextDecoder()

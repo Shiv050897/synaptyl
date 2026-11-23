@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { chatClient, type WhoAmI } from './client'
 import {
   decryptPayload, encryptFile, encryptPayload, loadLocalKeys, safetyNumber, sharedKey,
-  type MediaInfo, type Payload, type PublicJwk,
+  type CallInfo, type MediaInfo, type Payload, type PublicJwk,
 } from './crypto'
 import AudioBubble from './AudioBubble'
 import MediaBubble from './MediaBubble'
@@ -12,6 +12,7 @@ import CallScreen from './CallScreen'
 import SettingsPanel from './SettingsPanel'
 import BackupSection from './BackupSection'
 import Picker from './Picker'
+import CallsPanel, { CallIcon, callLabel, formatDuration, type CallEntry } from './CallsPanel'
 import { isJumboEmoji, stickerById } from './stickers'
 import { avatarUrl, removeAvatar, setAvatar, type ProfileRow } from './avatars'
 import { loadTheme, saveTheme, type ChatTheme } from './theme'
@@ -24,7 +25,7 @@ type Row = {
   id: string
   sender_id: string
   recipient_id: string
-  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file'
+  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file' | 'call'
   ciphertext: string | null
   iv: string | null
   sender_key_version: number | null
@@ -53,6 +54,7 @@ function preview(m: Msg | undefined) {
   if (!m) return 'Message'
   if (m.problem === 'deleted') return 'Deleted message'
   if (!m.payload) return 'Encrypted message'
+  if (m.payload.call) return m.payload.call.media === 'video' ? '🎥 Video call' : '📞 Voice call'
   if (m.payload.sticker) return `${stickerById(m.payload.sticker)?.emoji ?? '🙂'} Sticker`
   if (m.payload.text) return m.payload.text.slice(0, 120)
   switch (m.row.kind) {
@@ -93,6 +95,9 @@ export default function ChatRoom({
   const [photos, setPhotos] = useState<Map<string, string | null>>(new Map())
   const [photoBusy, setPhotoBusy] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [showCalls, setShowCalls] = useState(false)
+  const [callEntries, setCallEntries] = useState<CallEntry[]>([])
+  const [callsLoading, setCallsLoading] = useState(false)
 
   const dirRef = useRef(directory)
   dirRef.current = directory
@@ -124,8 +129,10 @@ export default function ChatRoom({
   const transmit = useCallback(async (env: SignalEnvelope) => {
     await channelRef.current?.send({ type: 'broadcast', event: 'call', payload: env })
   }, [])
+  const logCallRef = useRef<(entry: { media: 'audio' | 'video'; outcome: CallInfo['outcome']; duration?: number }) => void>(() => {})
   const call = useCall({
     meId: me.user_id, peerId: peer.user_id, sharedFor, myVersion: myLatest, peerVersion: peerLatest, transmit,
+    onLog: (entry) => logCallRef.current(entry),
   })
   const onEnvelopeRef = useRef(call.onEnvelope)
   const applyProfilesRef = useRef<(rows: ProfileRow[]) => Promise<void>>(async () => {})
@@ -336,7 +343,7 @@ export default function ChatRoom({
   // ---- sending ----------------------------------------------------------
   const canSend = myLatest > 0 && peerLatest > 0
 
-  async function sendPayload(kind: Row['kind'], payload: Payload, mediaPath: string | null, id: string) {
+  async function sendPayload(kind: Row['kind'], payload: Payload, mediaPath: string | null, id: string, asReply = true) {
     const priv = localKeys.get(myLatest)!
     const peerJwk = directory.get(peer.user_id)!.get(peerLatest)!
     const key = await sharedKey(
@@ -347,12 +354,12 @@ export default function ChatRoom({
     const row: Row = {
       id, sender_id: me.user_id, recipient_id: peer.user_id, kind, ciphertext, iv,
       sender_key_version: myLatest, recipient_key_version: peerLatest, media_path: mediaPath,
-      reply_to_id: replyTo?.row.id ?? null, created_at: new Date().toISOString(),
+      reply_to_id: asReply ? replyTo?.row.id ?? null : null, created_at: new Date().toISOString(),
       delivered_at: null, read_at: null, deleted_at: null,
     }
     stickToBottom.current = true
     setMessages((prev) => new Map(prev).set(id, { row, payload, problem: 'none', local: 'sending' }))
-    setReplyTo(null)
+    if (asReply) setReplyTo(null)
     const { error: insertError } = await sb.from('chat_messages').insert({
       id, recipient_id: peer.user_id, kind, ciphertext, iv,
       sender_key_version: myLatest, recipient_key_version: peerLatest,
@@ -410,6 +417,24 @@ export default function ChatRoom({
       return
     }
     await sendMedia(kind, file, { name })
+  }
+
+  // Outgoing calls are recorded as encrypted "call" entries in the chat.
+  logCallRef.current = (entry) => {
+    if (!canSend) return
+    void sendPayload('call', { v: 1, call: entry }, null, crypto.randomUUID(), false)
+  }
+
+  async function openCalls() {
+    setShowCalls(true)
+    setCallsLoading(true)
+    const { data } = await sb.from('chat_messages').select('*')
+      .eq('kind', 'call').order('created_at', { ascending: false }).limit(200)
+    const decoded = await Promise.all(((data ?? []) as Row[]).map(decode))
+    setCallEntries(decoded.flatMap((m) => m.payload?.call
+      ? [{ id: m.row.id, at: m.row.created_at, outgoing: m.row.sender_id === me.user_id, call: m.payload.call }]
+      : []))
+    setCallsLoading(false)
   }
 
   function insertEmoji(emoji: string) {
@@ -477,6 +502,9 @@ export default function ChatRoom({
           disabled={!canSend || call.status !== 'idle'} onClick={() => void call.start('audio')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
         </button>
+        <button className="pc-icon-btn" type="button" onClick={() => void openCalls()} aria-label="Call history" title="Call history">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
+        </button>
         <button className="pc-icon-btn" type="button" onClick={() => void openInfo()} aria-label="Settings" title="Settings">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         </button>
@@ -521,6 +549,18 @@ export default function ChatRoom({
                   {m.problem === 'deleted' && <i className="pc-faint">🚫 This message was deleted</i>}
                   {m.problem === 'nokey' && <i className="pc-faint">🔒 Can't be read on this device</i>}
                   {m.problem === 'failed' && <i className="pc-faint">⚠️ Couldn't decrypt this message</i>}
+                  {m.payload?.call && (() => {
+                    const { text, missed } = callLabel(m.payload.call, mine)
+                    return (
+                      <div className="pc-callrow">
+                        <CallIcon media={m.payload.call.media} outgoing={mine} missed={missed} />
+                        <span className={missed ? 'missed' : ''}>{text}</span>
+                        {m.payload.call.duration ? <small>{formatDuration(m.payload.call.duration)}</small> : null}
+                        <button type="button" className="pc-callback" disabled={!canSend || call.status !== 'idle'}
+                          onClick={(e) => { e.stopPropagation(); void call.start(m.payload!.call!.media) }}>Call back</button>
+                      </div>
+                    )
+                  })()}
                   {m.payload?.sticker && (() => {
                     const st = stickerById(m.payload.sticker)
                     return (
@@ -643,6 +683,17 @@ export default function ChatRoom({
       </div>
 
       <CallScreen call={call} peerName={peer.username} />
+
+      {showCalls && (
+        <CallsPanel
+          entries={callEntries}
+          loading={callsLoading}
+          peerName={peer.username}
+          canCall={canSend && call.status === 'idle'}
+          onCall={(media) => { setShowCalls(false); void call.start(media) }}
+          onClose={() => setShowCalls(false)}
+        />
+      )}
 
       {showInfo && (
         <SettingsPanel

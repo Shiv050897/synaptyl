@@ -12,7 +12,7 @@ type Member = {
 type Overview = { locked: boolean; members: Member[]; message_count: number; media_count: number }
 type MessageRow = {
   id: string
-  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file'
+  kind: 'text' | 'voice' | 'audio' | 'image' | 'video' | 'file' | 'call'
   created_at: string
   read_at: string | null
   deleted_at: string | null
@@ -23,7 +23,7 @@ type MessageRow = {
 
 const PAGE = 50
 const KIND_LABEL: Record<MessageRow['kind'], string> = {
-  text: 'Text', voice: 'Voice note', audio: 'Audio file', image: 'Photo', video: 'Video', file: 'Document',
+  text: 'Text', voice: 'Voice note', audio: 'Audio file', image: 'Photo', video: 'Video', file: 'Document', call: 'Call',
 }
 
 function when(value: string | null) {
