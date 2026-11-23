@@ -10,6 +10,20 @@ const PRIVATE_PATHS = ['/k7m2q', '/zx', '/chat', '/admin']
 const path = window.location.pathname.replace(/\/+$/, '') || '/'
 const isPrivate = PRIVATE_PATHS.includes(path)
 
+// Some phones show the site in "desktop" mode (laid out ~980px wide, then
+// shrunk), which makes the chat tiny. On touch screens, scale the private
+// area back to the phone's real width so it looks like a normal phone app.
+if (isPrivate) {
+  const fit = () => {
+    const ratio = window.innerWidth / window.screen.width
+    const zoom = window.matchMedia('(pointer: coarse)').matches && ratio > 1.3 ? ratio : 1
+    document.documentElement.style.setProperty('--pc-zoom', String(zoom))
+    document.documentElement.classList.toggle('pc-fit', zoom !== 1)
+  }
+  fit()
+  window.addEventListener('resize', fit)
+}
+
 // Hidden way into the private sign-in page: five quick taps on any SYNAPTYL
 // logo, or holding a finger on it for two seconds. Nothing is shown to others.
 if (!isPrivate) {
