@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { decryptPayload, encryptPayload } from './crypto'
+import { decryptPayload, encryptPayload, type CallOutcome } from './crypto'
 
 export type CallMedia = 'audio' | 'video'
 export type CallStatus = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'active'
@@ -29,6 +29,8 @@ type Options = {
   peerVersion: number
   /** Sends an envelope to the peer over the realtime channel. */
   transmit: (env: SignalEnvelope) => Promise<void>
+  /** Called once per outgoing call with its result, to record call history. */
+  onLog?: (entry: { media: CallMedia; outcome: CallOutcome; duration?: number }) => void
 }
 
 /** Simple two-tone ring generated in the browser (no audio files needed). */
@@ -65,7 +67,7 @@ function createRinger() {
   }
 }
 
-export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, transmit }: Options) {
+export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, transmit, onLog }: Options) {
   const [status, setStatus] = useState<CallStatus>('idle')
   const [media, setMedia] = useState<CallMedia>('audio')
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
@@ -83,6 +85,25 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
   const streamRef = useRef<MediaStream | null>(null)
   const ringTimer = useRef<number | undefined>(undefined)
   const ringer = useRef(createRinger())
+  const isCaller = useRef(false)
+  const logged = useRef(true)
+  const mediaRef = useRef<CallMedia>('audio')
+  const startedRef = useRef<number | null>(null)
+  const onLogRef = useRef(onLog)
+  onLogRef.current = onLog
+
+  /** Records the result of an outgoing call once (the caller keeps the history). */
+  const log = (outcome: CallOutcome) => {
+    if (!isCaller.current || logged.current) return
+    logged.current = true
+    const started = startedRef.current
+    let final: CallOutcome = started && outcome !== 'declined' && outcome !== 'busy' ? 'completed' : outcome
+    if (final === 'completed' && !started) final = 'cancelled' // hung up before it connected
+    onLogRef.current?.({
+      media: mediaRef.current, outcome: final,
+      duration: final === 'completed' && started ? Math.round((Date.now() - started) / 1000) : undefined,
+    })
+  }
 
   const setStatusBoth = (s: CallStatus) => {
     statusRef.current = s
@@ -112,6 +133,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
     setMuted(false)
     setCameraOff(false)
     setStartedAt(null)
+    startedRef.current = null
     setStatusBoth('idle')
     setNotice(message)
     if (message) window.setTimeout(() => setNotice(''), 4000)
@@ -137,8 +159,10 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'connected') {
         setStatusBoth('active')
+        if (!startedRef.current) startedRef.current = Date.now()
         setStartedAt((t) => t ?? Date.now())
       } else if (peer.connectionState === 'failed') {
+        log('failed')
         if (callId.current) void send({ t: 'end', callId: callId.current })
         cleanup('The call could not connect.')
       }
@@ -157,6 +181,9 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
   const start = useCallback(async (kind: CallMedia) => {
     if (statusRef.current !== 'idle') return
     callId.current = crypto.randomUUID()
+    isCaller.current = true
+    logged.current = false
+    mediaRef.current = kind
     setMedia(kind)
     setStatusBoth('outgoing')
     try {
@@ -167,11 +194,13 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
       await send({ t: 'offer', callId: callId.current, media: kind, sdp: offer.sdp ?? '' })
       ringTimer.current = window.setTimeout(() => {
         if (statusRef.current === 'outgoing' && callId.current) {
+          log('no-answer')
           void send({ t: 'end', callId: callId.current })
           cleanup('No answer.')
         }
       }, RING_TIMEOUT_MS)
     } catch {
+      logged.current = true // media was blocked before ringing: nothing to record
       cleanup(kind === 'video' ? 'Camera or microphone access was blocked.' : 'Microphone access was blocked.')
     }
   }, [send, cleanup])
@@ -202,6 +231,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
   }, [send, cleanup])
 
   const hangUp = useCallback(() => {
+    log(statusRef.current === 'outgoing' ? 'cancelled' : 'completed')
     if (callId.current) void send({ t: 'end', callId: callId.current })
     cleanup()
   }, [send, cleanup])
@@ -225,6 +255,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
         return
       }
       callId.current = signal.callId
+      isCaller.current = false
       pendingOffer.current = { sdp: signal.sdp, media: signal.media }
       setMedia(signal.media)
       setStatusBoth('incoming')
@@ -248,12 +279,15 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
         await flushIce()
         break
       case 'decline':
+        log('declined')
         cleanup('Call declined.')
         break
       case 'busy':
+        log('busy')
         cleanup('They are on another call.')
         break
       case 'end':
+        log(statusRef.current === 'outgoing' ? 'no-answer' : 'completed')
         cleanup(statusRef.current === 'incoming' ? 'Missed call.' : 'Call ended.')
         break
     }
@@ -272,6 +306,7 @@ export function useCall({ meId, peerId, sharedFor, myVersion, peerVersion, trans
 
   // End any call if the page goes away.
   useEffect(() => () => {
+    log(statusRef.current === 'outgoing' ? 'cancelled' : 'completed')
     if (callId.current) void send({ t: 'end', callId: callId.current })
     cleanup()
   }, [])
