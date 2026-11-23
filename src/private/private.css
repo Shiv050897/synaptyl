@@ -454,3 +454,8 @@
 .pc-calls-body b { font-size: 15px; }
 .pc-calls-body b.missed { color: var(--pc-danger); }
 .pc-calls-body small { font-size: 13px; color: var(--pc-muted); }
+
+/* Very large text sizes: keep bubbles and preview within the screen */
+.pc-bubble { max-width: min(88%, max(520px, calc(260px * var(--pc-fs)))); }
+.pc-text { overflow-wrap: anywhere; }
+.pc-textsize-preview { max-height: 140px; white-space: nowrap; }
